@@ -15,7 +15,7 @@ fósiles en LATAM, y qué implica para la política fiscal y de subsidios?
 - **EIA**: precio internacional del petróleo Brent.
 - **FMI, World Economic Outlook** (vía IMF DataMapper): indicadores fiscales (deuda pública
   bruta, balance fiscal, ingreso del gobierno general). Se usa el WEO y no el Banco Mundial
-  porque cubre los 34 países sin huecos (el Banco Mundial deja 50–79 % de huecos en el Caribe).
+  porque cubre los 34 países sin missing values (el Banco Mundial deja 50–79 % de missing values en el Caribe).
 
 Descargadas como referencia pero no integradas al panel: riesgo país EMBIG (BCRP) y
 reservas internacionales (World Bank). El detalle de cada fuente, con URL y motivo de
