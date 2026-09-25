@@ -56,3 +56,26 @@ Dos pasadas bastan (no usa bibliografía ni `\cite`). Sale `Prueba_Tecnica_Resul
 *Tema: diferencias-en-diferencias (TWFE) sobre el choque del Brent 2022 × condición de
 exportador neto, panel de 34 países de ALC, 2015–2023. Datos: IMF Fossil Fuel Subsidies
 Database, IMF WEO, EIA Brent.*
+
+---
+
+## Versiones del deck
+
+| Archivo | Págs | Estado |
+|---|---|---|
+| `Prueba_Tecnica_Resultados.tex` / `.pdf` | 32 | **Versión final.** La única en git (commit `cf91bb8`). |
+| `Prueba_Tecnica_Resultados_37pp.tex` / `.pdf` | 37 | Variante larga, anterior a la poda. No estaba en git. |
+
+Las dos comparten `figures/` y `tables/`, que son idénticas.
+
+La de 32 pp es la definitiva: además de más corta, es más precisa — donde la de 37 pp
+hablaba de "malos controles", la final explica que las variables fiscales son variables de
+resultado y que incluirlas introduciría endogeneidad.
+
+**Procedencia (nota del 2026-09-22):** la variante de 37 pp estaba en una carpeta portable
+dentro del repo del curso AEPP, donde no pertenecía. Se rescató de ahí y el 2026-09-24 se
+consolidó en esta carpeta. Se descartaron en esa consolidación tres archivos de un borrador
+intermedio de las 08:32 del 2026-06-14 (`_v_anterior_0832.tex`, `_v_anterior.pdf` y un
+`_REFERENCIA.pdf` mal nombrado, que era build del mismo borrador y no de la versión vigente),
+junto con copias duplicadas de `figures/`, `tables/` y del paper de referencia de Perú que ya
+está en `docs/`.

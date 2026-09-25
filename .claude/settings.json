@@ -52,9 +52,9 @@
       "Bash(pdftotext -f 28 -l 28 Prueba_Tecnica_Resultados.pdf -)",
       "Bash(xelatex -interaction=nonstopmode -halt-on-error Prueba_Tecnica_Resultados.tex)",
       "Bash(echo \"exit: $?\")",
-      "Bash(git -C /Users/daniel/Documents/Prueba_Tecnica status --short)",
-      "Bash(git -C /Users/daniel/Documents/Prueba_Tecnica log --oneline -3)",
-      "Bash(git -C /Users/daniel/Documents/Prueba_Tecnica add .gitignore .claude/)"
+      "Bash(git -C /Users/daniel/Documents/Pruebas_Tecnicas/Prueba_Tecnica status --short)",
+      "Bash(git -C /Users/daniel/Documents/Pruebas_Tecnicas/Prueba_Tecnica log --oneline -3)",
+      "Bash(git -C /Users/daniel/Documents/Pruebas_Tecnicas/Prueba_Tecnica add .gitignore .claude/)"
     ]
   },
   "hooks": {
