@@ -1,14 +1,16 @@
 # Design decisions
 
 A short log of the main methodological and data choices behind the project, and why
-they were made. Details and numbers are in the slides (`presentation/`).
+they were made. Details and numbers are in the working paper (`report/`).
 
 ## Research design
 
 - **Identification: difference-in-differences (TWFE).** The 2022 Brent spike was driven
   by the Russian invasion of Ukraine: a global, unexpected shock that no Latin American
   country could move through its own subsidy policy. That makes it plausibly exogenous
-  and usable as a natural experiment. A before/after comparison would attribute every
+  to subsidy policy. All countries faced the same price increase, so the design
+  identifies the *differential* response of net exporters relative to net importers,
+  not the total effect of the shock. A before/after comparison would attribute every
   2022 change (post-pandemic rebound, inflation) to the shock, and a 2022 cross-section
   would confuse the effect with pre-existing level differences. Both differences are
   needed at once.
@@ -20,7 +22,9 @@ they were made. Details and numbers are in the slides (`presentation/`).
 - **Outcome = explicit subsidy (% of GDP).** The explicit subsidy is the gap between
   consumer price and supply cost, so it reacts directly to the oil price. The implicit
   subsidy (externalities and forgone taxes) is dominated by slow-moving structural
-  components and is used as a placebo outcome.
+  components and is used as an auxiliary (falsification) outcome. It is an imperfect
+  one: both measures are built jointly and the forgone-VAT part of the implicit
+  subsidy scales with the price.
 - **No fiscal controls in the model.** Debt, fiscal balance and revenue are themselves
   affected by the shock (they are outcomes, not exogenous covariates), so including
   them would introduce bias. They are used only in the policy section.
@@ -48,13 +52,15 @@ they were made. Details and numbers are in the slides (`presentation/`).
 
 ## Inference and robustness
 
-- **Small treated group (7 exporters).** This limits precision (wider intervals,
-  p ≈ 0.06 for the main effect), not unbiasedness. It is reported openly rather than
-  hidden behind specification search.
-- **Parallel trends assessed with an event study.** Pre-shock coefficients alternate in
-  sign and their 95 % intervals include zero; the joint Wald test rejects strict
-  nullity because of the volatility of a small group hit by 2018 and COVID-2020, not
-  because of a systematic pre-trend.
+- **Small treated group (7 exporters).** Standard errors are clustered by country, but
+  with seven treated clusters conventional inference is likely optimistic (p ≈ 0.06 for
+  the main effect). Wild cluster bootstrap, randomization inference and Conley–Taber
+  intervals are the natural next checks; they are listed as extensions, not claimed.
+- **Parallel trends assessed with an event study, and reported honestly.** Pre-shock
+  coefficients show no monotonic trend, but a joint test rejects that they are all zero
+  (F(6, 33) = 4.09, p = 0.004) and they co-move with the Brent price. With a single
+  post-shock year this can bias the estimate, so the paper discusses it rather than
+  attributing it to noise, and points to Rambachan–Roth sensitivity analysis.
 - **Leave-one-out instead of dropping outliers by hand.** Venezuela is an extreme value,
   but dropping it ad hoc would be selection on the outcome. Re-estimating without each
   exporter keeps the effect positive in all cases
@@ -67,9 +73,14 @@ they were made. Details and numbers are in the slides (`presentation/`).
   stock rather than the one-year deficit, which is volatile and cyclical.
 - **The matrix is descriptive prioritisation, not a causal model.** It indicates where
   reform is most pressing; it does not estimate the effect of any specific policy.
+- **Illustrative differential cost for all exporters.** β3 × 2022 GDP is computed for
+  all seven exporters (including Guyana, whose subsidy fell, to avoid selecting on the
+  outcome), with a range from β3's 95% CI. It is not the total cost of the shock.
 
-## Presentation
+## Communication
 
-- **One final deck (32 slides).** An earlier 37-slide version was discarded; the final
-  one is shorter and more precise about why fiscal variables are excluded from the
-  model.
+- **A working paper instead of slides.** The results were first presented in a Spanish
+  Beamer deck. It was replaced by an English R Markdown working paper whose numbers are
+  computed from the pipeline outputs at render time, so text, tables and figures cannot
+  drift apart. Writing it surfaced several errors in the deck (e.g. the largest 2022
+  increase was Suriname, a net importer, not an exporter).

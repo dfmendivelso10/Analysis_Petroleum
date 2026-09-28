@@ -4,13 +4,13 @@ Visual conventions of the project. They apply to **every** table and figure and 
 implemented centrally in `code/config.R` (helpers `tabla_aer()`, `tema_wb_*()`,
 `caption_wb()`, `save_fig()`).
 
-> The tables, figures and slide deck are in Spanish; these conventions describe how
-> they are built.
+> These conventions describe how the pipeline builds tables and figures; the working
+> paper (`report/`) prints figure and table notes as text below each float.
 
 ## Tables (AER style)
 
-- Exported to Excel (`.xlsx`) with `openxlsx`, and to vector PDF for LaTeX with
-  `code/descriptives/tables_pdf.R`.
+- Exported to Excel (`.xlsx`) with `openxlsx`; the working paper typesets them natively
+  in LaTeX (booktabs) from those files.
 - Portrait orientation; at most 9 columns including the variable column.
 - Consecutive numbering (Table 1, Table 2, ...).
 - Horizontal rules and white space only; no vertical rules or shading.
@@ -43,8 +43,9 @@ implemented centrally in `code/config.R` (helpers `tabla_aer()`, `tema_wb_*()`,
 
 - Style based on the World Bank Data Visualization Style Guide
   (https://wbg-vis-design.vercel.app/, packages `wbpyplot` / `wbplot`).
-- Times New Roman (via `cairo_pdf`); white background; no title or subtitle.
-- Size 7.5 × 5.2 inches (forest plots 8.5 × 5.5).
-- Official WB categorical palette; text #111111, axes #666666, grid #EBEEF4.
+- Times New Roman; 8-bit PNG at 300 dpi; pure white background; no title or subtitle.
+- Width 6.5 inches (the text width of the paper), so text prints at native size.
+- Official WB categorical palette; text and axis labels #111111, grid #EBEEF4.
 - The shock year (2022) is shaded in time-series charts.
-- Caption limited to "Notes:" and "Source:".
+- No note is burned into the image: each figure's note and source are stored in
+  `outputs/results/figure_notes.rds` and printed below the figure in the paper.

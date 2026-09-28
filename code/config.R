@@ -38,6 +38,7 @@ PATH <- list(
   processed = here("data", "processed"),
   fig       = here("outputs", "figures"),
   tab       = here("outputs", "tables"),
+  res       = here("outputs", "results"),   # key estimates (.rds) read by the report
   docs      = here("docs"),
   logs      = here("logs")
 )
@@ -68,34 +69,34 @@ LAC_ISO <- c("ATG","ARG","ABW","BHS","BRB","BLZ","BOL","BRA","CHL","COL","CRI",
              "DMA","DOM","ECU","SLV","GRD","GTM","GUY","HTI","HND","JAM","MEX",
              "NIC","PAN","PRY","PER","PRI","KNA","LCA","VCT","SUR","TTO","URY","VEN")
 
-# Country names in Spanish (ISO3 -> label), for tables and figures.
-# The panel carries IMF country names in English; they are translated when reporting.
-PAIS_ES <- c(
-  ATG="Antigua y Barbuda", ARG="Argentina", ABW="Aruba", BHS="Bahamas",
-  BRB="Barbados", BLZ="Belice", BOL="Bolivia", BRA="Brasil", CHL="Chile",
-  COL="Colombia", CRI="Costa Rica", DMA="Dominica", DOM="República Dominicana",
-  ECU="Ecuador", SLV="El Salvador", GRD="Granada", GTM="Guatemala", GUY="Guyana",
-  HTI="Haití", HND="Honduras", JAM="Jamaica", MEX="México", NIC="Nicaragua",
-  PAN="Panamá", PRY="Paraguay", PER="Perú", PRI="Puerto Rico",
-  KNA="San Cristóbal y Nieves", LCA="Santa Lucía",
-  VCT="San Vicente y las Granadinas", SUR="Surinam",
-  TTO="Trinidad y Tobago", URY="Uruguay", VEN="Venezuela"
+# Country names in English (ISO3 -> label), for tables and figures.
+# Short common names are used instead of the IMF's official names.
+COUNTRY_EN <- c(
+  ATG="Antigua and Barbuda", ARG="Argentina", ABW="Aruba", BHS="Bahamas",
+  BRB="Barbados", BLZ="Belize", BOL="Bolivia", BRA="Brazil", CHL="Chile",
+  COL="Colombia", CRI="Costa Rica", DMA="Dominica", DOM="Dominican Republic",
+  ECU="Ecuador", SLV="El Salvador", GRD="Grenada", GTM="Guatemala", GUY="Guyana",
+  HTI="Haiti", HND="Honduras", JAM="Jamaica", MEX="Mexico", NIC="Nicaragua",
+  PAN="Panama", PRY="Paraguay", PER="Peru", PRI="Puerto Rico",
+  KNA="St. Kitts and Nevis", LCA="St. Lucia",
+  VCT="St. Vincent and the Grenadines", SUR="Suriname",
+  TTO="Trinidad and Tobago", URY="Uruguay", VEN="Venezuela"
 )
-#' Translate ISO3 codes to Spanish country names
-pais_es <- function(iso) unname(PAIS_ES[iso])
+#' Translate ISO3 codes to English country names
+country_en <- function(iso) unname(COUNTRY_EN[iso])
 
 # Fuels (IMF code -> label)
 FUELS <- tribble(
   ~code,  ~label,
-  "gso",  "Gasolina",
-  "die",  "Diésel",
-  "lpg",  "GLP",
-  "ker",  "Keroseno",
-  "oop",  "Otros derivados de petróleo",
-  "oil",  "Petróleo (agregado)",
-  "nga",  "Gas natural",
-  "coa",  "Carbón",
-  "ecy",  "Electricidad"
+  "gso",  "Gasoline",
+  "die",  "Diesel",
+  "lpg",  "LPG",
+  "ker",  "Kerosene",
+  "oop",  "Other oil products",
+  "oil",  "Oil (aggregate)",
+  "nga",  "Natural gas",
+  "coa",  "Coal",
+  "ecy",  "Electricity"
 )
 
 # Aggregate subsidy variables (MTCode -> short name)
@@ -142,11 +143,14 @@ WB_GRID   <- "#EBEEF4"   # guide lines (Grey100)
 WB_SHADE  <- "#EBEEF4"   # shading for the shock year
 
 # Explicit vs implicit (explicit is the one that reacts to the shock -> orange)
-COLORES_COMPONENTE <- c("Explícito" = WB_CAT[2], "Implícito" = WB_CAT[1])
+COLORES_COMPONENTE <- c("Explicit" = WB_CAT[2], "Implicit" = WB_CAT[1])
 
-# Net oil importers vs net exporters (blue vs orange, WB default)
-COLORES_EXPOSICION <- c("Importador neto" = WB_CAT[1],
-                        "Exportador neto" = WB_CAT[2])
+# Net oil importers vs net exporters (blue vs orange, WB default).
+# GRUPO_LEVELS fixes the legend order in every figure (Net importer, Net exporter):
+# pass it as `breaks` to the colour scales.
+GRUPO_LEVELS <- c("Net importer", "Net exporter")
+COLORES_EXPOSICION <- c("Net importer" = WB_CAT[1],
+                        "Net exporter" = WB_CAT[2])
 
 # World Bank base theme: white background, Times New Roman, no minor grid or border
 tema_wb_base <- function(base_size = 11) {
@@ -154,14 +158,20 @@ tema_wb_base <- function(base_size = 11) {
     theme(
       text             = element_text(family = "Times New Roman", colour = WB_TEXT),
       plot.title       = element_blank(),
-      axis.text        = element_text(colour = WB_SUBTLE),
+      axis.text        = element_text(colour = WB_TEXT),   # dark ticks: legible in print
       axis.title       = element_text(colour = WB_TEXT),
+      legend.text      = element_text(colour = WB_TEXT),
       strip.background = element_blank(),
       strip.text       = element_text(face = "bold"),
       legend.position  = "bottom",
       legend.title     = element_blank(),
       panel.grid.minor = element_blank(),
       panel.border     = element_blank(),
+      # Pure white background (no off-white panel when the PNG sits on the page)
+      plot.background  = element_rect(fill = "white", colour = NA),
+      panel.background = element_rect(fill = "white", colour = NA),
+      legend.background = element_rect(fill = "white", colour = NA),
+      legend.key       = element_rect(fill = "white", colour = NA),
       plot.caption     = element_text(size = 8, hjust = 0, colour = WB_SUBTLE,
                                       family = "Times New Roman",
                                       margin = margin(t = 10))
@@ -192,14 +202,16 @@ tema_wb_barras <- function(base_size = 11) {
 # Compatibility aliases (scripts may use the previous AER name)
 tema_aer_base <- tema_wb_base; tema_aer_ts <- tema_wb_ts; tema_aer_barras <- tema_wb_barras
 
-FIG_W <- 7.5; FIG_H <- 5.2          # standard (inches)
+# Figures are saved at the paper's text width (6.5 in) so that they are included
+# at ~100% scale and text prints at >= 7-8 pt.
+FIG_W <- 6.5; FIG_H <- 4.3          # standard (inches)
 FIG_W_FOREST <- 8.5; FIG_H_FOREST <- 5.5
 
-#' Standard caption: only "Notas:" + "Fuente:"
-#' @param notas text after "Notas:"; fuente text after "Fuente:"
+#' Standard caption: only "Notes:" + "Source:"
+#' @param notas text after "Notes:"; fuente text after "Source:"
 caption_wb <- function(notas = NULL, fuente = NULL) {
-  partes <- c(if (!is.null(notas))  paste0("Notas: ", notas),
-              if (!is.null(fuente)) paste0("Fuente: ", fuente))
+  partes <- c(if (!is.null(notas))  paste0("Notes: ", notas),
+              if (!is.null(fuente)) paste0("Source: ", fuente))
   paste(partes, collapse = "\n")
 }
 
@@ -215,16 +227,17 @@ save_fig <- function(plot, name, w = FIG_W, h = FIG_H) {
   message("Figure saved: ", path)
 }
 
-#' Save figure as 300 dpi PNG with the footnote composited INSIDE the
-#' image (PACES style). The ggplot is rendered to a temp PNG and magick
-#' appends a white block below with the note (wrapped to width). Keeps color.
-#'   plot:   ggplot/patchwork (no caption; the note goes separately).
+#' Save a figure as an 8-bit PNG (300 dpi) WITHOUT an embedded footnote, and
+#' register its note in outputs/results/figure_notes.rds. The report prints the
+#' note as text under the figure (legible at any size) instead of burning it
+#' into the image.
+#'   plot:   ggplot/patchwork (no caption; the note is stored separately).
 #'   name:   output file (.png) in outputs/figures.
-#'   nota:   footnote text, running prose. Prefixed with "Notas. " plus the source.
-#'   fuente: text after "Fuente: " (appended at the end of the note).
-#'   w, h:   figure panel size in inches (excluding the note).
+#'   nota:   footnote text, running prose (stored without the "Notes." prefix).
+#'   fuente: source text (stored separately; the report prefixes "Source:").
+#'   w, h:   figure size in inches.
 save_fig_png <- function(plot, name, nota, fuente = NULL,
-                         w = 9, h = 7, dpi = 300) {
+                         w = FIG_W, h = FIG_H, dpi = 300) {
   stopifnot(requireNamespace("magick", quietly = TRUE))
   path <- file.path(PATH$fig, name)
   tmp  <- tempfile(fileext = ".png")
@@ -232,64 +245,18 @@ save_fig_png <- function(plot, name, nota, fuente = NULL,
   # PNG comes out transparent, which renders black when viewed or composited.
   ggsave(tmp, plot, width = w, height = h, dpi = dpi,
          device = grDevices::png, type = "cairo", bg = "white")
+  # Flatten to 8-bit RGB: 16-bit PNGs do not render under XeLaTeX/xdvipdfmx.
+  img <- magick::image_read(tmp)
+  img <- magick::image_flatten(magick::image_background(img, "white"))
+  magick::image_write(img, path, format = "png", depth = 8, density = dpi)
 
-  img  <- magick::image_read(tmp)
-  w_px <- magick::image_info(img)$width
+  # Register the note (one entry per figure file; re-running a script overwrites it)
+  notes_file <- file.path(PATH$res, "figure_notes.rds")
+  notes <- if (file.exists(notes_file)) readRDS(notes_file) else list()
+  notes[[name]] <- list(note = nota, source = fuente)
+  saveRDS(notes[order(names(notes))], notes_file)
 
-  # Running-prose footnote. Font size is PROPORTIONAL to the chart
-  # (~8pt = dpi*0.11 px). The wrap width is not guessed with a factor: it is
-  # MEASURED. Actual px width per character is computed by rendering a sample
-  # with magick (image_trim), then we find the largest `por_linea` whose longest
-  # line after strwrap still fits the available width. So the text fills edge
-  # to edge without overflowing, for any figure format (wide or narrow).
-  texto     <- paste0("Notas. ", nota,
-                      if (!is.null(fuente)) paste0(" Fuente: ", fuente))
-  margen     <- as.integer(round(dpi * 0.12))     # vertical padding of the note
-  margen_lat <- as.integer(round(dpi * 0.05))     # side padding (smaller: the
-                                                  # text reaches closer to edges)
-  ancho_txt  <- w_px - 2 * margen_lat
-  fs         <- as.integer(round(dpi * 0.11))     # ~33px = 8pt at 300dpi
-
-  # Actual px width of a Times string at size fs (measured, not estimated)
-  ancho_px <- function(s) {
-    if (nchar(s) == 0L) return(0L)
-    m <- magick::image_blank(w_px * 2L, fs * 3L, "white")
-    m <- magick::image_annotate(m, s, font = "Times", size = fs,
-                                location = "+0+0", gravity = "northwest")
-    magick::image_info(magick::image_trim(m))$width
-  }
-  # Widest line after wrapping at `cols` characters
-  max_ancho <- function(cols) {
-    ls <- strwrap(texto, width = cols)
-    max(vapply(ls, ancho_px, integer(1L)))
-  }
-  # Find the largest cols whose longest line still fits in ancho_txt
-  cols <- 40L
-  while (max_ancho(cols + 5L) <= ancho_txt) cols <- cols + 5L
-  while (cols > 10L && max_ancho(cols) > ancho_txt) cols <- cols - 2L
-
-  envuelto  <- paste(strwrap(texto, width = cols), collapse = "\n")
-  n_lineas  <- length(strsplit(envuelto, "\n")[[1L]])
-
-  # Render the note on a roomy canvas and TRIM to the text's actual height
-  # (image_trim), so no leftover white band remains under the last line.
-  # Then re-pad with uniform padding above and below (= margen / 2).
-  pad     <- as.integer(round(margen / 2))
-  alto_max <- n_lineas * round(fs * 1.6) + 4L * margen
-  bloque  <- magick::image_blank(w_px, alto_max, "white")
-  bloque  <- magick::image_annotate(bloque, envuelto, font = "Times",
-             size = fs, color = WB_TEXT,
-             location = paste0("+", margen_lat, "+", pad),
-             gravity = "northwest")
-  bloque  <- magick::image_trim(bloque)                  # trim to the text
-  lienzo  <- magick::image_border(bloque, "white",
-             paste0(margen_lat, "x", pad))               # smaller side padding
-  lienzo  <- magick::image_extent(lienzo, paste0(w_px, "x",
-             magick::image_info(lienzo)$height),
-             gravity = "west", color = "white")          # restore full width
-  final  <- magick::image_append(c(img, lienzo), stack = TRUE)
-  magick::image_write(final, path, format = "png", density = dpi)
-  message("Figure saved: ", path, " (PNG ", dpi, " dpi)")
+  message("Figure saved: ", path, " (PNG ", dpi, " dpi, 8-bit)")
   invisible(path)
 }
 
@@ -306,7 +273,7 @@ cargar_panel_anio <- function() read_excel(FILE_PANEL_ANIO)
 cargar_panel_fuel <- function() read_excel(FILE_PANEL_FUEL)
 
 #' Save table to Excel with header formatting
-guardar_tabla <- function(df, name, sheet_name = "Datos") {
+guardar_tabla <- function(df, name, sheet_name = "Data") {
   path <- file.path(PATH$tab, name)
   wb <- createWorkbook()
   addWorksheet(wb, sheet_name)
@@ -332,7 +299,7 @@ guardar_tabla <- function(df, name, sheet_name = "Datos") {
 #' Layout: empty column A (margin), horizontal lines, no verticals or shading.
 tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
                       paneles = NULL, ancho_datos = 14, landscape = FALSE,
-                      sheet_name = "Tabla") {
+                      sheet_name = "Table") {
   TNR <- "Times New Roman"
 
   wb <- createWorkbook()
@@ -448,7 +415,7 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
   # width) with text wrap. The vector's parts are joined with a space.
   if (!is.null(notas)) {
     nr <- dat_row0 + n
-    texto <- paste0("Notas. ", paste(notas, collapse = " "))
+    texto <- paste0("Notes. ", paste(notas, collapse = " "))
     writeData(wb, sheet_name, texto, startCol = off_col, startRow = nr)
     mergeCells(wb, sheet_name, cols = cols, rows = nr)
     addStyle(wb, sheet_name, createStyle(fontName = TNR, fontSize = 9,
@@ -476,11 +443,56 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
   message("Table saved: ", file.path(PATH$tab, name))
 }
 
-#' Add a leading zero to decimal fractions and fix decimals (0.357, not .357)
+# Typography for notes and table cells: true minus sign (U+2212) and en dash
+# (U+2013) for ranges.
+MINUS <- "\u2212"
+NDASH <- "\u2013"
+
+#' Fixed decimals with leading zero (0.357, not .357) and a true minus sign.
+#' Values that round to zero print as an unsigned "0.00" (no "-0.00").
 fmt_num <- function(x, dec = 2) {
   x <- round(x, dec)
-  x[x == 0] <- 0                       # avoids "-0.00" from rounding
-  ifelse(is.na(x), "", formatC(x, format = "f", digits = dec))
+  x[!is.na(x) & x == 0] <- 0           # avoids "-0.00" from rounding
+  out <- sub("^-", MINUS, formatC(x, format = "f", digits = dec))
+  ifelse(is.na(x), "", out)
+}
+
+#' Signed number: "+1.79", "\u22120.32"; exact or rounded zeros print as "0.00"
+fmt_signed <- function(x, dec = 2) {
+  v <- round(x, dec)
+  ifelse(is.na(v), "",
+         ifelse(v == 0, formatC(0, format = "f", digits = dec),
+                paste0(ifelse(v > 0, "+", MINUS),
+                       formatC(abs(v), format = "f", digits = dec))))
+}
+
+#' Year range with an en dash: yr_range(2015, 2021) -> "2015\u20132021"
+yr_range <- function(a, b) paste0(a, NDASH, b)
+
+#' Axis labels with a true minus sign (for ggplot scale `labels =`)
+lab_minus <- function(x) {
+  out <- sub("^-", MINUS, format(x, trim = TRUE, drop0trailing = TRUE))
+  ifelse(is.na(x), NA_character_, out)
+}
+
+#' p-value for notes: "p = 0.004" or "p < 0.001"
+fmt_p <- function(p, dec = 3) {
+  if (p < 10^-dec) paste0("p < ", formatC(10^-dec, format = "f", digits = dec))
+  else paste0("p = ", formatC(p, format = "f", digits = dec))
+}
+
+#' Spell out integers below 10 ("seven"), digits otherwise ("27")
+num_en <- function(n) {
+  w <- c("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine")
+  ifelse(n >= 0 & n < 10, w[n + 1], as.character(n))
+}
+
+#' English list with serial comma: "A, B, and C"
+enum_en <- function(x) {
+  x <- as.character(x)
+  if (length(x) <= 1) return(paste(x, collapse = ""))
+  if (length(x) == 2) return(paste(x, collapse = " and "))
+  paste0(paste(x[-length(x)], collapse = ", "), ", and ", x[length(x)])
 }
 
 #' Start script log (sink to logs/)

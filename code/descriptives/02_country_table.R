@@ -6,12 +6,13 @@
 #   Country-by-year breakdown of the explicit subsidy as % of GDP (2015-2023),
 #   with the shock change (2022 vs pre-shock average 2015-2021) in the last
 #   column. Two panels:
-#     Panel A: net hydrocarbon exporters (7)
-#     Panel B: net importers (27)
+#     Panel A: net oil exporters (7)
+#     Panel B: net oil importers (27)
 #   Sorted by size of the change within each panel. Landscape orientation.
 #
 # Input:  data/processed/panel_country_year.xlsx
 # Output: outputs/tables/tab2_countries.xlsx
+#         outputs/results/02_country_table.rds (key numbers for the paper)
 
 source(here::here("code/config.R"))
 
@@ -27,14 +28,16 @@ por_pais <- df |>
     y22    = 100 * expl_pctgdp[anio == 2022][1],
     .groups = "drop"
   ) |>
-  mutate(cambio = y22 - pre, pais = pais_es(iso))
+  mutate(cambio = y22 - pre, pais = country_en(iso))
 
 # One table row per country: name + one value per year + change
 fila_pais <- function(r) {
   serie <- r$serie[[1]]
   as_tibble(c(
     list(Pais = paste0("  ", r$pais)),
-    setNames(as.list(fmt_num(serie, 2)), as.character(anios)),
+    # "n.a." marks a missing country-year (explained in the note)
+    setNames(as.list(ifelse(is.na(serie), "n.a.", fmt_num(serie, 2))),
+             as.character(anios)),
     list(Cambio = fmt_num(r$cambio, 2))
   ))
 }
@@ -50,44 +53,80 @@ vacias <- setNames(as.list(rep("", length(anios) + 1L)),
                    c(as.character(anios), "Cambio"))
 fila_lbl <- function(txt) as_tibble(c(list(Pais = txt), vacias))
 fila_n   <- function(datos) as_tibble(c(
-  list(Pais = paste0("  N (países) = ", nrow(datos))), vacias))
+  list(Pais = paste0("  N (countries) = ", nrow(datos))), vacias))
 
 exp <- filter(por_pais, exportador_neto)
 imp <- filter(por_pais, !exportador_neto)
 
 tabla <- bind_rows(
-  fila_lbl("Panel A. Exportadores netos de hidrocarburos"),
+  fila_lbl("Panel A. Net oil exporters"),
   panel_pais(exp), fila_n(exp),
-  fila_lbl("Panel B. Importadores netos"),
+  fila_lbl("Panel B. Net oil importers"),
   panel_pais(imp), fila_n(imp)
 )
 
-names(tabla) <- c("País", as.character(anios), "Cambio (pp)")
+names(tabla) <- c("Country", as.character(anios), "Change (pp)")
 
+# Missing country-years (for the note): "Puerto Rico 2015\u20132017"-style list
+faltantes <- por_pais |>
+  mutate(anios_na = lapply(serie, function(v) as.integer(names(v)[is.na(v)]))) |>
+  filter(lengths(anios_na) > 0) |>
+  arrange(pais)
+txt_na <- vapply(seq_len(nrow(faltantes)), function(i) {
+  a <- faltantes$anios_na[[i]]
+  rango <- if (length(a) > 1 && all(diff(a) == 1)) yr_range(min(a), max(a))
+           else paste(a, collapse = ", ")
+  paste(faltantes$pais[i], rango)
+}, character(1))
+
+pre_lbl <- yr_range(min(anios), 2021)
 tabla_aer(
   tabla,
   name        = "tab2_countries.xlsx",
-  titulo      = "Tabla 2. Subsidio explícito a combustibles fósiles por país y año (% del PIB)",
+  titulo      = "Table 2. Explicit fossil fuel subsidy by country and year (% of GDP)",
   ancho_datos = 7,
   landscape   = TRUE,
   notas = c(
-    paste("Subsidio explícito a los combustibles fósiles como porcentaje del PIB, por país y",
-          "año, alrededor del choque petrolero de 2022."),
-    paste("La última columna es el cambio del choque en puntos porcentuales: el valor de 2022",
-          "menos el promedio del período pre-choque (2015-2021)."),
-    paste("Los países se ordenan por la magnitud del cambio dentro de cada panel. Un valor de",
-          "0.00 indica que el país no aplica subsidio explícito (precio al consumidor por",
-          "encima del costo de suministro)."),
-    paste("La clasificación es por exposición fiscal neta al precio del petróleo, no por",
-          "producción: en los exportadores netos el alza del Brent infla la renta petrolera",
-          "que financia el subsidio, mientras que en los importadores netos encarece el costo",
-          "de suministro y agrava el gasto. Argentina (importador neto de energía en el",
-          "período) y Brasil (importa los derivados refinados que se subsidian) se clasifican",
-          "como importadores."),
-    paste0("Panel A, exportadores netos de hidrocarburos (N = ", nrow(exp), "): ",
-           paste(sort(pais_es(exp$iso)), collapse = ", "), ". ",
-           "Panel B, importadores netos (N = ", nrow(imp), "): ",
-           paste(sort(pais_es(imp$iso)), collapse = ", "), "."),
-    "Fuente: IMF Fossil Fuel Subsidies Database."
+    "Explicit fossil fuel subsidy as a percentage of GDP, by country and year.",
+    paste0("Change (pp): 2022 value minus the ", pre_lbl, " average, in percentage ",
+           "points; countries are sorted by this change within each panel. A value of 0.00 ",
+           "indicates a subsidy below 0.005% of GDP",
+           if (length(txt_na) > 0) paste0("; n.a.: not available (", enum_en(txt_na), ")"),
+           "."),
+    paste0("Countries are classified by net oil trade position, not by production (",
+           num_en(nrow(exp)), " net oil exporters and ", num_en(nrow(imp)),
+           " net oil importers)."),
+    "Source: IMF Fossil Fuel Subsidies Database."
   )
 )
+
+# ---------------------------------------------------------------------------
+# Key numbers for the paper -> outputs/results/02_country_table.rds
+# Elements:
+#   classification : data frame, one row per country (sorted by group, then by
+#                    descending change as in the table): iso, country, group
+#                    ("Net exporter"/"Net importer"), explicit_pct_gdp_<year>
+#                    for each year 2015-2023, pre_mean_2015_2021, y2022,
+#                    change_pp (2022 minus 2015-2021 mean, pp of GDP)
+#   net_exporters  : character vector of net exporter country names (sorted)
+#   net_importers  : character vector of net importer country names (sorted)
+# ---------------------------------------------------------------------------
+clasif <- bind_rows(arrange(exp, desc(cambio)), arrange(imp, desc(cambio)))
+serie_mat <- do.call(rbind, clasif$serie)
+colnames(serie_mat) <- paste0("explicit_pct_gdp_", anios)
+res <- list(
+  classification = data.frame(
+    iso     = clasif$iso,
+    country = clasif$pais,
+    group   = ifelse(clasif$exportador_neto, "Net exporter", "Net importer"),
+    serie_mat,
+    pre_mean_2015_2021 = clasif$pre,
+    y2022              = clasif$y22,
+    change_pp          = clasif$cambio,
+    row.names = NULL, check.names = FALSE
+  ),
+  net_exporters = sort(country_en(exp$iso)),
+  net_importers = sort(country_en(imp$iso))
+)
+saveRDS(res, file.path(PATH$res, "02_country_table.rds"))
+message("Results saved: ", file.path(PATH$res, "02_country_table.rds"))

@@ -28,7 +28,7 @@ df["brecha_gso"] = df["precio_gso"] - df["costo_gso"]
 df["brecha_die"] = df["precio_die"] - df["costo_die"]
 df["brecha_nga"] = df["precio_nga"] - df["costo_nga"]
 
-# Net hydrocarbon exporter: the heterogeneity axis of the shock. The criterion is
+# Net oil exporter: the heterogeneity axis of the shock. The criterion is
 # NOT "produces oil" but NET FISCAL EXPOSURE to the crude price:
 #   - Net exporter: a Brent rise inflates the state's oil rents, which
 #     finance/cushion the subsidy (subsidy = redistribution of rents).
@@ -37,7 +37,7 @@ df["brecha_nga"] = df["precio_nga"] - df["costo_nga"]
 # Hence Argentina (net energy importer in 2015-23, Vaca Muerta did not yet
 # offset it) and Brazil (exports crude but imports the refined PRODUCTS that are
 # subsidized to consumers) enter as importers: the shock raises their bill,
-# not their rents. Net exporters with a clear, sustained hydrocarbon surplus:
+# not their rents. Net exporters with a clear, sustained oil trade surplus:
 # crude (VEN, ECU, COL, MEX, TTO), gas (BOL) and newcomer GUY (Stabroek since 2019).
 EXPORTADORES = {"VEN", "ECU", "COL", "MEX", "TTO", "BOL", "GUY"}
 df["exportador_neto"] = df["iso"].isin(EXPORTADORES)
