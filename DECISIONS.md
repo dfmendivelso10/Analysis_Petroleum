@@ -14,6 +14,10 @@ they were made. Details and numbers are in the working paper (`report/`).
   2022 change (post-pandemic rebound, inflation) to the shock, and a 2022 cross-section
   would confuse the effect with pre-existing level differences. Both differences are
   needed at once.
+- **Treatment rule fixed before estimation (2026-09-28).** Net oil exporter = positive
+  average 2015–2019 net trade in crude and refined products (HS 2709 + 2710, UN Comtrade;
+  mirror data where a country does not report). Chosen before seeing results; the earlier
+  hand-coded list of seven exporters and other variants are reported only as sensitivity.
 - **Treatment = net oil exporter × post-2022.** Classification is by *net* oil trade
   position, not by whether a country produces oil: Argentina and Brazil extract crude
   but import more refined products than they export, so they do not capture oil rents
