@@ -2,7 +2,7 @@
 name: compile-latex
 description: Compila el deck Beamer del proyecto con XeLaTeX y reporta warnings (overfull hbox, referencias). Usar para compilar la presentación de resultados y verificar que renderiza limpio.
 disable-model-invocation: true
-argument-hint: "[archivo sin .tex, o vacío = Prueba_Tecnica_Resultados]"
+argument-hint: "[archivo sin .tex, o vacío = oil_shock_subsidies_LAC]"
 ---
 
 # Compilar el deck Beamer (XeLaTeX)
@@ -16,7 +16,7 @@ Compila la presentación con XeLaTeX. En este proyecto el preámbulo está **inl
 1. **Compilar** (dos pasadas para resolver `\insertframenumber` y cross-refs). Desde la raíz:
 
    ```bash
-   FILE="${ARGUMENTS:-Prueba_Tecnica_Resultados}"
+   FILE="${ARGUMENTS:-oil_shock_subsidies_LAC}"
    xelatex -interaction=nonstopmode "$FILE.tex"
    xelatex -interaction=nonstopmode "$FILE.tex"
    ```

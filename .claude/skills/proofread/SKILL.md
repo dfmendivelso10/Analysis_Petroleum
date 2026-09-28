@@ -14,7 +14,7 @@ todos los problemas SIN editar las fuentes. Sigue `proofreading-protocol.md`.
 
 1. **Identificar el archivo:**
    - Si `$ARGUMENTS` es un `.tex`: revisar ese.
-   - Si está vacío: el deck principal del proyecto (`Prueba_Tecnica_Resultados.tex`).
+   - Si está vacío: el deck principal del proyecto (`oil_shock_subsidies_LAC.tex`).
 
 2. **Lanzar el agente `proofreader`** sobre el archivo. Revisa:
    - **GRAMÁTICA/ORTOGRAFÍA:** concordancia, tildes, `¿`/`¡`, sin 1ª persona ni informalidad.
@@ -27,8 +27,8 @@ todos los problemas SIN editar las fuentes. Sigue `proofreading-protocol.md`.
    - **COHERENCIA ECONOMÉTRICA:** que la afirmación verbal no exceda el dato; notación
      estadística del proyecto.
 
-3. **Verificar cifras contra la fuente** cuando sea posible: leer `logs/log_06_modelo*.txt`,
-   `logs/log_08_robustez*.txt` y `data/processed/panel_pais_anio.xlsx` para confirmar los
+3. **Verificar cifras contra la fuente** cuando sea posible: leer `logs/log_06_model*.txt`,
+   `logs/log_08_robustness*.txt` y `data/processed/panel_country_year.xlsx` para confirmar los
    números citados en los slides (no recalcular el modelo; solo cotejar).
 
 4. **Guardar el reporte** en `quality_reports/[NOMBRE_SIN_EXT]_proofread.md`.

@@ -73,7 +73,7 @@ Flujo lógico: setup → carga de datos → transformación → estimación → 
 ## 8. R — disciplina específica
 
 Adaptado del estándar de R del toolkit. Las convenciones de figuras (paleta World Bank,
-Times New Roman, dimensiones) viven en `code/config.R` y `docs/convenciones.md`, no aquí;
+Times New Roman, dimensiones) viven en `code/config.R` y `docs/conventions.md`, no aquí;
 esto cubre estilo y, sobre todo, **disciplina numérica**.
 
 - `library()` (no `require()`) y `set.seed()` una sola vez, arriba (en `config.R`).

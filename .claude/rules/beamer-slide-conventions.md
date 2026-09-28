@@ -5,7 +5,7 @@ paths:
 
 # Convenciones del deck Beamer (presentación de resultados)
 
-Convenciones del deck `Prueba_Tecnica_Resultados.tex`. Derivadas del propio archivo; mantener
+Convenciones del deck `oil_shock_subsidies_LAC.tex`. Derivadas del propio archivo; mantener
 cualquier edición consistente con ellas. El preámbulo va **inline** (no en `Preambles/`).
 
 ## Compilación

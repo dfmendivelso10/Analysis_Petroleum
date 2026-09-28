@@ -1,5 +1,8 @@
-# Harness / herramientas internas (no parte del entregable)
+# Internal working files (kept locally, not published)
 MEMORY.md
+CLAUDE.md
+quality_reports/
+ai_logs/
 
 # macOS
 .DS_Store
@@ -16,17 +19,26 @@ venv/
 .RData
 .Rproj.user/
 
-# Temporales
+# Temporary files
 *.tmp
 ~$*
 
-# Logs de ejecución (reproducibles, no entregable)
+# Run logs (reproducible)
 logs/
 
-# Notas internas de presentación (borrador, no entregable)
+# LaTeX auxiliary files
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.synctex.gz
+
+# Internal presentation notes (draft)
 docs/resultados_slides.md
 
-# Material de referencia / insumos internos (no entregable)
+# Reference material / internal inputs
 docs/11DiferenciasendiferenciasultimaversionPeru.pdf
 docs/DiD_fixed_effects.pdf
 docs/justificacion_criterio_clasificacion.xlsx

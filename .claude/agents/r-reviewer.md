@@ -60,7 +60,7 @@ de producción combinado con el rigor de un paquete de replicación publicado.
 
 ### 6. CALIDAD DE FIGURAS
 - [ ] Paleta y tema consistentes con el estándar del proyecto (World Bank style;
-      definidos en `code/config.R` y `docs/convenciones.md`).
+      definidos en `code/config.R` y `docs/conventions.md`).
 - [ ] Tipografía Times New Roman; tamaños legibles al proyectar.
 - [ ] Dimensiones explícitas en `ggsave()` (`width`, `height`, `device`).
 - [ ] Ejes con etiqueta clara, sin abreviar, con unidad.

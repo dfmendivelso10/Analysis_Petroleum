@@ -8,9 +8,9 @@ effort: high
 
 # /did-event-study — DiD / event study, estándar de práctica de Sant'Anna
 
-> **CONTEXTO DE ESTE PROYECTO (leer primero).** El diseño de la prueba técnica es un
+> **CONTEXTO DE ESTE PROYECTO (leer primero).** El diseño de este proyecto es un
 > **2×2 canónico** (un único período de tratamiento, 2022; exportadores vs. importadores),
-> estimado con **TWFE en `fixest`** (`06_modelo.R`). Para ese caso, esta skill misma indica
+> estimado con **TWFE en `fixest`** (`06_model.R`). Para ese caso, esta skill misma indica
 > que basta un one-liner (`DRDID::drdid()` o `feols(y ~ d*post)`), no el pipeline escalonado
 > completo. Esta skill queda como **referencia / biblioteca**: aplica plenamente solo si el
 > diseño crece a **adopción escalonada** (varios años de tratamiento, timing heterogéneo).

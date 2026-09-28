@@ -42,7 +42,7 @@ robustez explícita:
   funcionales; reportar la distribución de estimadores, no uno).
 - **Leave-one-out / observaciones influyentes** — confirmar que el resultado no lo arrastran
   unas pocas unidades o un solo cluster. *(En este proyecto: el leave-one-out de los 7
-  exportadores, ya implementado en `08_robustez.R`.)*
+  exportadores, ya implementado en `08_robustness.R`.)*
 - **Robustez de la inferencia** — niveles alternativos de clustering, wild-cluster bootstrap
   con pocos clusters, inferencia por aleatorización cuando el diseño lo permite.
 - Para **DiD específicamente**, la batería de robustez es la suite de diagnóstico +

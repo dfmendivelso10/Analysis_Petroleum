@@ -1,35 +1,35 @@
 ###############################################################
-# Choque petrolero 2022 y subsidios fósiles en LATAM
-# config.R — configuración global del proyecto
-# Autor: Daniel Mendivelso
+# 2022 oil shock and fossil fuel subsidies in LAC
+# config.R — global project configuration
+# Author: Daniel Mendivelso
 #
-# Descripción:
-#   Centraliza librerías, rutas, catálogos (países LATAM, combustibles,
-#   variables IMF), helpers (logging, guardar tablas/figuras) y temas
-#   de figuras (paleta World Bank, tablas estilo AER).
+# Description:
+#   Centralizes libraries, paths, catalogs (LAC countries, fuels,
+#   IMF variables), helpers (logging, saving tables/figures) and figure
+#   themes (World Bank palette, AER-style tables).
 #
-# Uso: source(here::here("code/config.R")) al inicio de cada script.
-# Input/Output: ninguno (solo define objetos en el environment).
+# Usage: source(here::here("code/config.R")) at the top of every script.
+# Input/Output: none (only defines objects in the environment).
 ###############################################################
 
 # =============================================================
-# 1. Librerías base
+# 1. Base libraries
 # =============================================================
 suppressPackageStartupMessages({
-  library(here)       # rutas relativas al proyecto
-  library(readxl)     # leer Excel
-  library(writexl)    # escribir Excel (ligero)
-  library(openxlsx)   # escribir Excel con formato
-  library(dplyr)      # manipulación
+  library(here)       # project-relative paths
+  library(readxl)     # read Excel
+  library(writexl)    # write Excel (lightweight)
+  library(openxlsx)   # write formatted Excel
+  library(dplyr)      # data manipulation
   library(tidyr)      # reshape
-  library(purrr)      # programación funcional
+  library(purrr)      # functional programming
   library(stringr)    # strings
-  library(ggplot2)    # gráficos
-  library(patchwork)  # combinar gráficos
+  library(ggplot2)    # plots
+  library(patchwork)  # combine plots
 })
 
 # =============================================================
-# 2. Rutas del proyecto
+# 2. Project paths
 # =============================================================
 PROJ_DIR <- here()
 
@@ -43,33 +43,33 @@ PATH <- list(
 )
 for (p in PATH) dir.create(p, showWarnings = FALSE, recursive = TRUE)
 
-# Archivos principales
-FILE_PANEL_ANIO <- file.path(PATH$processed, "panel_pais_anio.xlsx")
-FILE_PANEL_FUEL <- file.path(PATH$processed, "panel_pais_anio_combustible.xlsx")
-# Ambos paneles los produce code/limpieza/00c_procesar.py (extracción + limpieza).
+# Main files
+FILE_PANEL_ANIO <- file.path(PATH$processed, "panel_country_year.xlsx")
+FILE_PANEL_FUEL <- file.path(PATH$processed, "panel_country_year_fuel.xlsx")
+# Both panels are produced by code/cleaning/00c_process.py (extraction + cleaning).
 
 # =============================================================
-# 3. Ventana temporal y escenario
+# 3. Time window and scenario
 # =============================================================
-# Datos observados 2015-2023 (2024+ son proyecciones). Choque = 2022.
+# Observed data 2015-2023 (2024+ are projections). Shock = 2022.
 YEARS_OBS  <- 2015:2023
 YEAR_SHOCK <- 2022
-YEARS_PRE  <- 2015:2019   # pre-choque "normal" (excluye 2020-21 COVID/recuperación)
+YEARS_PRE  <- 2015:2019   # "normal" pre-shock (excludes 2020-21 COVID/recovery)
 
-# Escenario baseline (sin reforma). El mapeo de columnas crudas de la
-# hoja `data` vive en code/limpieza/00c_procesar.py (extracción + limpieza en Python).
+# Baseline scenario (no reform). The mapping of raw columns from the
+# `data` sheet lives in code/cleaning/00c_process.py (extraction + cleaning in Python).
 SCENARIO_BASELINE <- "U1"
 
 # =============================================================
-# 4. Catálogos
+# 4. Catalogs
 # =============================================================
-# Países de América Latina y el Caribe (ISO3)
+# Latin America and Caribbean countries (ISO3)
 LAC_ISO <- c("ATG","ARG","ABW","BHS","BRB","BLZ","BOL","BRA","CHL","COL","CRI",
              "DMA","DOM","ECU","SLV","GRD","GTM","GUY","HTI","HND","JAM","MEX",
              "NIC","PAN","PRY","PER","PRI","KNA","LCA","VCT","SUR","TTO","URY","VEN")
 
-# Nombres de país en español (ISO3 -> etiqueta), para tablas y figuras.
-# El panel trae los nombres del IMF en inglés; se traducen al reportar.
+# Country names in Spanish (ISO3 -> label), for tables and figures.
+# The panel carries IMF country names in English; they are translated when reporting.
 PAIS_ES <- c(
   ATG="Antigua y Barbuda", ARG="Argentina", ABW="Aruba", BHS="Bahamas",
   BRB="Barbados", BLZ="Belice", BOL="Bolivia", BRA="Brasil", CHL="Chile",
@@ -81,10 +81,10 @@ PAIS_ES <- c(
   VCT="San Vicente y las Granadinas", SUR="Surinam",
   TTO="Trinidad y Tobago", URY="Uruguay", VEN="Venezuela"
 )
-#' Traducir códigos ISO3 a nombre de país en español
+#' Translate ISO3 codes to Spanish country names
 pais_es <- function(iso) unname(PAIS_ES[iso])
 
-# Combustibles (código IMF -> etiqueta)
+# Fuels (IMF code -> label)
 FUELS <- tribble(
   ~code,  ~label,
   "gso",  "Gasolina",
@@ -98,57 +98,57 @@ FUELS <- tribble(
   "ecy",  "Electricidad"
 )
 
-# Variables de subsidio agregadas (MTCode -> nombre corto)
+# Aggregate subsidy variables (MTCode -> short name)
 MT_AGG <- c(
-  expl_total  = "mit.expsub.con.all.all.1",    # explícito total (USD bn)
-  impl_total  = "mit.impsub.con.all.all.1",    # implícito total (USD bn)
+  expl_total  = "mit.expsub.con.all.all.1",    # explicit total (USD bn)
+  impl_total  = "mit.impsub.con.all.all.1",    # implicit total (USD bn)
   tot_total   = "mit.allsub.con.all.all.1",    # total expl+impl (USD bn)
-  expl_pctgdp = "mit.expsubgdp.con.all.all.1", # explícito % PIB (fracción)
-  impl_pctgdp = "mit.impsubgdp.con.all.all.1", # implícito % PIB (fracción)
-  tot_pctgdp  = "mit.allsubgdp.con.all.all.1"  # total % PIB (fracción)
+  expl_pctgdp = "mit.expsubgdp.con.all.all.1", # explicit % GDP (fraction)
+  impl_pctgdp = "mit.impsubgdp.con.all.all.1", # implicit % GDP (fraction)
+  tot_pctgdp  = "mit.allsubgdp.con.all.all.1"  # total % GDP (fraction)
 )
-# Contexto macro/fiscal (MTCode -> nombre corto)
+# Macro/fiscal context (MTCode -> short name)
 MT_MACRO <- c(
-  gdp      = "mit.gdp.pre.lvl.1",   # PIB baseline
-  pop      = "mit.pop.mn",          # población (millones)
-  rev_usd  = "mit.rev.new.usd.1",   # ingreso fiscal neto subsidios (USD bn)
-  eff_cost = "mit.wel.eco.dwl.usd"  # costo de eficiencia (USD bn)
+  gdp      = "mit.gdp.pre.lvl.1",   # baseline GDP
+  pop      = "mit.pop.mn",          # population (millions)
+  rev_usd  = "mit.rev.new.usd.1",   # net fiscal revenue from subsidies (USD bn)
+  eff_cost = "mit.wel.eco.dwl.usd"  # efficiency cost (USD bn)
 )
 
-# NOTA: las variables *pctgdp vienen como FRACCIÓN (0.093 = 9.3% PIB).
-# Multiplicar por 100 al reportar en porcentaje.
+# NOTE: the *pctgdp variables come as a FRACTION (0.093 = 9.3% of GDP).
+# Multiply by 100 when reporting as a percentage.
 
 # =============================================================
-# 5. Temas de figuras (paleta World Bank, tipografía Times New Roman)
+# 5. Figure themes (World Bank palette, Times New Roman typeface)
 # =============================================================
-# Estilo visual basado en el World Bank Data Visualization Style Guide.
-#   Guía:      https://wbg-vis-design.vercel.app/  (sección Colors)
-#   Paletas:   paquetes oficiales wbpyplot (Python) / wbplot (R)
+# Visual style based on the World Bank Data Visualization Style Guide.
+#   Guide:     https://wbg-vis-design.vercel.app/  (Colors section)
+#   Palettes:  official packages wbpyplot (Python) / wbplot (R)
 #              https://worldbank.github.io/wbpyplot/
-#   Consultado: 2026-06-13.
-# Se adopta la paleta del WB; la tipografía se mantiene en Times New Roman
-# (convención del proyecto) en lugar de Open Sans del WB.
+#   Accessed:  2026-06-13.
+# The WB palette is adopted; the typeface stays Times New Roman
+# (project convention) instead of the WB's Open Sans.
 
-# Paleta categórica oficial (9 colores)
+# Official categorical palette (9 colors)
 WB_CAT <- c("#34A7F2", "#FF9800", "#664AB6", "#4EC2C0", "#F3578E",
             "#081079", "#0C7C68", "#AA0000", "#DDDA21")
-# Secuencial monocromática (para énfasis del choque)
+# Monochromatic sequential (to emphasize the shock)
 WB_SEQ_YELLOW <- c("#FDF7DB", "#ECB63A", "#BE792B", "#8D4117", "#5C0000")
 WB_SEQ_BLUE   <- c("#E3F6FD", "#75CCEC", "#089BD4", "#0169A1", "#023B6F")
-# Elementos de gráfico (texto, ejes, grilla, fondo)
-WB_TEXT   <- "#111111"   # texto principal
-WB_SUBTLE <- "#666666"   # ejes / texto secundario
-WB_GRID   <- "#EBEEF4"   # líneas de guía (Grey100)
-WB_SHADE  <- "#EBEEF4"   # sombreado del año del choque
+# Chart elements (text, axes, grid, background)
+WB_TEXT   <- "#111111"   # main text
+WB_SUBTLE <- "#666666"   # axes / secondary text
+WB_GRID   <- "#EBEEF4"   # guide lines (Grey100)
+WB_SHADE  <- "#EBEEF4"   # shading for the shock year
 
-# Explícito vs implícito (el explícito es el que reacciona al choque -> naranja)
+# Explicit vs implicit (explicit is the one that reacts to the shock -> orange)
 COLORES_COMPONENTE <- c("Explícito" = WB_CAT[2], "Implícito" = WB_CAT[1])
 
-# Importadores vs exportadores netos de petróleo (azul vs naranja, default WB)
+# Net oil importers vs net exporters (blue vs orange, WB default)
 COLORES_EXPOSICION <- c("Importador neto" = WB_CAT[1],
                         "Exportador neto" = WB_CAT[2])
 
-# Tema base World Bank: fondo blanco, Times New Roman, sin grilla menor ni borde
+# World Bank base theme: white background, Times New Roman, no minor grid or border
 tema_wb_base <- function(base_size = 11) {
   theme_minimal(base_size = base_size) +
     theme(
@@ -168,7 +168,7 @@ tema_wb_base <- function(base_size = 11) {
     )
 }
 
-# Variante series de tiempo: eje X visible, grilla Y de guía
+# Time-series variant: visible X axis, Y guide grid
 tema_wb_ts <- function(base_size = 11) {
   tema_wb_base(base_size) +
     theme(
@@ -178,7 +178,7 @@ tema_wb_ts <- function(base_size = 11) {
     )
 }
 
-# Variante ranking/barras horizontales: grilla X de guía
+# Ranking/horizontal-bar variant: X guide grid
 tema_wb_barras <- function(base_size = 11) {
   tema_wb_base(base_size) +
     theme(
@@ -189,22 +189,22 @@ tema_wb_barras <- function(base_size = 11) {
     )
 }
 
-# Aliases compatibles (los scripts pueden usar el nombre AER previo)
+# Compatibility aliases (scripts may use the previous AER name)
 tema_aer_base <- tema_wb_base; tema_aer_ts <- tema_wb_ts; tema_aer_barras <- tema_wb_barras
 
-FIG_W <- 7.5; FIG_H <- 5.2          # estándar (pulgadas)
+FIG_W <- 7.5; FIG_H <- 5.2          # standard (inches)
 FIG_W_FOREST <- 8.5; FIG_H_FOREST <- 5.5
 
-#' Caption estándar: solo "Notas:" + "Fuente:"
-#' @param notas texto tras "Notas:"; fuente texto tras "Fuente:"
+#' Standard caption: only "Notas:" + "Fuente:"
+#' @param notas text after "Notas:"; fuente text after "Fuente:"
 caption_wb <- function(notas = NULL, fuente = NULL) {
   partes <- c(if (!is.null(notas))  paste0("Notas: ", notas),
               if (!is.null(fuente)) paste0("Fuente: ", fuente))
   paste(partes, collapse = "\n")
 }
 
-#' Guardar figura en outputs/figures (PDF cairo, sin título). Si pdfcrop está
-#' disponible en el sistema, recorta los márgenes sobrantes del PDF.
+#' Save figure to outputs/figures (cairo PDF, no title). If pdfcrop is
+#' available on the system, it trims the PDF's excess margins.
 save_fig <- function(plot, name, w = FIG_W, h = FIG_H) {
   path <- file.path(PATH$fig, name)
   ggsave(path, plot, width = w, height = h, device = grDevices::cairo_pdf)
@@ -212,45 +212,45 @@ save_fig <- function(plot, name, w = FIG_W, h = FIG_H) {
     system2("pdfcrop", args = c(shQuote(path), shQuote(path)),
             stdout = FALSE, stderr = FALSE)
   }
-  message("Figura guardada: ", path)
+  message("Figure saved: ", path)
 }
 
-#' Guardar figura como PNG 300 dpi con la nota al pie compuesta DENTRO de la
-#' imagen (estilo PACES). El ggplot se renderiza a un PNG temporal y magick le
-#' pega abajo un bloque blanco con la nota (envuelta al ancho). Conserva color.
-#'   plot:   ggplot/patchwork (sin caption; la nota va aparte).
-#'   name:   archivo de salida (.png) en outputs/figures.
-#'   nota:   texto al pie, de corrido. Se le antepone "Notas. " y la fuente.
-#'   fuente: texto tras "Fuente: " (se agrega al final de la nota).
-#'   w, h:   tamaño del panel de la figura en pulgadas (sin contar la nota).
+#' Save figure as 300 dpi PNG with the footnote composited INSIDE the
+#' image (PACES style). The ggplot is rendered to a temp PNG and magick
+#' appends a white block below with the note (wrapped to width). Keeps color.
+#'   plot:   ggplot/patchwork (no caption; the note goes separately).
+#'   name:   output file (.png) in outputs/figures.
+#'   nota:   footnote text, running prose. Prefixed with "Notas. " plus the source.
+#'   fuente: text after "Fuente: " (appended at the end of the note).
+#'   w, h:   figure panel size in inches (excluding the note).
 save_fig_png <- function(plot, name, nota, fuente = NULL,
                          w = 9, h = 7, dpi = 300) {
   stopifnot(requireNamespace("magick", quietly = TRUE))
   path <- file.path(PATH$fig, name)
   tmp  <- tempfile(fileext = ".png")
-  # bg = "white": theme_minimal deja el fondo NA; sin esto el PNG de cairo sale
-  # con fondo transparente, que se renderiza negro al visualizar o componer.
+  # bg = "white": theme_minimal leaves the background NA; without this the cairo
+  # PNG comes out transparent, which renders black when viewed or composited.
   ggsave(tmp, plot, width = w, height = h, dpi = dpi,
          device = grDevices::png, type = "cairo", bg = "white")
 
   img  <- magick::image_read(tmp)
   w_px <- magick::image_info(img)$width
 
-  # Nota al pie de corrido. La fuente se fija a un tamano PROPORCIONAL al chart
-  # (~8pt = dpi*0.11 px). El ancho de envoltura no se adivina con un factor: se
-  # MIDE. Se calcula el ancho real en px por caracter renderizando una muestra
-  # con magick (image_trim), y se busca el mayor `por_linea` cuya linea mas larga
-  # tras strwrap aun quepa en el ancho disponible. Asi el texto llena de extremo
-  # a extremo sin desbordar, en cualquier formato de figura (ancha o angosta).
+  # Running-prose footnote. Font size is PROPORTIONAL to the chart
+  # (~8pt = dpi*0.11 px). The wrap width is not guessed with a factor: it is
+  # MEASURED. Actual px width per character is computed by rendering a sample
+  # with magick (image_trim), then we find the largest `por_linea` whose longest
+  # line after strwrap still fits the available width. So the text fills edge
+  # to edge without overflowing, for any figure format (wide or narrow).
   texto     <- paste0("Notas. ", nota,
                       if (!is.null(fuente)) paste0(" Fuente: ", fuente))
-  margen     <- as.integer(round(dpi * 0.12))     # padding vertical de la nota
-  margen_lat <- as.integer(round(dpi * 0.05))     # padding lateral (menor: el
-                                                  # texto llega mas a los bordes)
+  margen     <- as.integer(round(dpi * 0.12))     # vertical padding of the note
+  margen_lat <- as.integer(round(dpi * 0.05))     # side padding (smaller: the
+                                                  # text reaches closer to edges)
   ancho_txt  <- w_px - 2 * margen_lat
-  fs         <- as.integer(round(dpi * 0.11))     # ~33px = 8pt a 300dpi
+  fs         <- as.integer(round(dpi * 0.11))     # ~33px = 8pt at 300dpi
 
-  # Ancho real en px de una cadena Times a tamano fs (medido, no estimado)
+  # Actual px width of a Times string at size fs (measured, not estimated)
   ancho_px <- function(s) {
     if (nchar(s) == 0L) return(0L)
     m <- magick::image_blank(w_px * 2L, fs * 3L, "white")
@@ -258,12 +258,12 @@ save_fig_png <- function(plot, name, nota, fuente = NULL,
                                 location = "+0+0", gravity = "northwest")
     magick::image_info(magick::image_trim(m))$width
   }
-  # Linea mas ancha tras envolver a `cols` caracteres
+  # Widest line after wrapping at `cols` characters
   max_ancho <- function(cols) {
     ls <- strwrap(texto, width = cols)
     max(vapply(ls, ancho_px, integer(1L)))
   }
-  # Buscar el mayor cols cuya linea mas larga aun cabe en ancho_txt
+  # Find the largest cols whose longest line still fits in ancho_txt
   cols <- 40L
   while (max_ancho(cols + 5L) <= ancho_txt) cols <- cols + 5L
   while (cols > 10L && max_ancho(cols) > ancho_txt) cols <- cols - 2L
@@ -271,9 +271,9 @@ save_fig_png <- function(plot, name, nota, fuente = NULL,
   envuelto  <- paste(strwrap(texto, width = cols), collapse = "\n")
   n_lineas  <- length(strsplit(envuelto, "\n")[[1L]])
 
-  # Render de la nota en un lienzo holgado y RECORTE al alto real del texto
-  # (image_trim), para no dejar franja blanca sobrante bajo la ultima linea.
-  # Luego se re-pega con un padding uniforme arriba y abajo (= margen / 2).
+  # Render the note on a roomy canvas and TRIM to the text's actual height
+  # (image_trim), so no leftover white band remains under the last line.
+  # Then re-pad with uniform padding above and below (= margen / 2).
   pad     <- as.integer(round(margen / 2))
   alto_max <- n_lineas * round(fs * 1.6) + 4L * margen
   bloque  <- magick::image_blank(w_px, alto_max, "white")
@@ -281,31 +281,31 @@ save_fig_png <- function(plot, name, nota, fuente = NULL,
              size = fs, color = WB_TEXT,
              location = paste0("+", margen_lat, "+", pad),
              gravity = "northwest")
-  bloque  <- magick::image_trim(bloque)                  # recorta al texto
+  bloque  <- magick::image_trim(bloque)                  # trim to the text
   lienzo  <- magick::image_border(bloque, "white",
-             paste0(margen_lat, "x", pad))               # padding lateral menor
+             paste0(margen_lat, "x", pad))               # smaller side padding
   lienzo  <- magick::image_extent(lienzo, paste0(w_px, "x",
              magick::image_info(lienzo)$height),
-             gravity = "west", color = "white")          # restaura ancho pleno
+             gravity = "west", color = "white")          # restore full width
   final  <- magick::image_append(c(img, lienzo), stack = TRUE)
   magick::image_write(final, path, format = "png", density = dpi)
-  message("Figura guardada: ", path, " (PNG ", dpi, " dpi)")
+  message("Figure saved: ", path, " (PNG ", dpi, " dpi)")
   invisible(path)
 }
 
 # =============================================================
-# 6. Helpers de datos / tablas / logging
+# 6. Data / table / logging helpers
 # =============================================================
 options(openxlsx.dateFormat = "yyyy-mm-dd")
 set.seed(42)
 
-#' Cargar el panel país×año
+#' Load the country×year panel
 cargar_panel_anio <- function() read_excel(FILE_PANEL_ANIO)
 
-#' Cargar el panel país×año×combustible
+#' Load the country×year×fuel panel
 cargar_panel_fuel <- function() read_excel(FILE_PANEL_FUEL)
 
-#' Guardar tabla en Excel con formato de encabezado
+#' Save table to Excel with header formatting
 guardar_tabla <- function(df, name, sheet_name = "Datos") {
   path <- file.path(PATH$tab, name)
   wb <- createWorkbook()
@@ -318,18 +318,18 @@ guardar_tabla <- function(df, name, sheet_name = "Datos") {
   addStyle(wb, sheet_name, headerStyle, rows = 1, cols = 1:ncol(df), gridExpand = TRUE)
   setColWidths(wb, sheet_name, cols = 1:ncol(df), widths = "auto")
   saveWorkbook(wb, path, overwrite = TRUE)
-  message("Tabla guardada: ", path)
+  message("Table saved: ", path)
 }
 
-#' Tabla con formato AER (ver .claude/rules/table-standards.md)
-#'   df:     data.frame; la 1a columna es el nombre de variable (texto, izquierda).
-#'   titulo: título de la tabla (13pt bold).
-#'   subheader: opcional, vector de etiquetas de columna (ej. c("","(1)","(2)"))
-#'              que va bajo el encabezado; 10pt centrado.
-#'   notas:  vector de notas al pie; la 1a va en cursiva (descripción), resto normal.
-#'   paneles: opcional, vector con la fila de inicio de cada panel y su etiqueta
-#'            como c("Panel A. ..." = 1, "Panel B. ..." = 5) (fila relativa a los datos).
-#' Layout: columna A vacía (margen), líneas horizontales, sin verticales ni sombreado.
+#' AER-format table (see .claude/rules/table-standards.md)
+#'   df:     data.frame; the 1st column is the variable name (text, left-aligned).
+#'   titulo: table title (13pt bold).
+#'   subheader: optional, vector of column labels (e.g. c("","(1)","(2)"))
+#'              placed under the header; 10pt centered.
+#'   notas:  vector of footnotes; the 1st is italic (description), the rest normal.
+#'   paneles: optional, vector with each panel's starting row and its label
+#'            as c("Panel A. ..." = 1, "Panel B. ..." = 5) (row relative to the data).
+#' Layout: empty column A (margin), horizontal lines, no verticals or shading.
 tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
                       paneles = NULL, ancho_datos = 14, landscape = FALSE,
                       sheet_name = "Tabla") {
@@ -339,19 +339,19 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
   addWorksheet(wb, sheet_name, gridLines = FALSE,
                orientation = if (landscape) "landscape" else "portrait")
 
-  off_col <- 2L                       # columna A vacía (margen izquierdo)
-  off_row <- 1L                       # fila 1 = título
+  off_col <- 2L                       # empty column A (left margin)
+  off_row <- 1L                       # row 1 = title
   ncol_df <- ncol(df)
   cols    <- off_col:(off_col + ncol_df - 1L)
 
-  # Título (fila 1)
+  # Title (row 1)
   writeData(wb, sheet_name, titulo, startCol = off_col, startRow = off_row)
   addStyle(wb, sheet_name, createStyle(fontName = TNR, fontSize = 13,
            textDecoration = "Bold"), rows = off_row, cols = off_col)
 
-  # Encabezado (fila 2): 11pt bold centrado, borde superior e inferior #888888.
-  # Se escribe solo la fila de nombres (los datos van aparte para no chocar con
-  # el subheader opcional).
+  # Header (row 2): 11pt bold centered, top and bottom border #888888.
+  # Only the names row is written (data goes separately so it does not clash with
+  # the optional subheader).
   hdr_row <- off_row + 1L
   writeData(wb, sheet_name, as.data.frame(t(names(df))), startCol = off_col,
             startRow = hdr_row, colNames = FALSE)
@@ -360,7 +360,7 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
            border = "TopBottom", borderColour = "#888888"),
            rows = hdr_row, cols = cols, gridExpand = TRUE)
 
-  # Subheader opcional con números de columna (1), (2): 10pt centrado
+  # Optional subheader with column numbers (1), (2): 10pt centered
   sub_row <- hdr_row
   if (!is.null(subheader)) {
     sub_row <- hdr_row + 1L
@@ -372,7 +372,7 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
              halign = "center"), rows = sub_row, cols = cols, gridExpand = TRUE)
   }
 
-  # Cuerpo: nombres de variable (col 1) 10pt bold izquierda; datos 10pt centrado.
+  # Body: variable names (col 1) 10pt bold left; data 10pt centered.
   dat_row0 <- sub_row + 1L
   n        <- nrow(df)
   writeData(wb, sheet_name, df, startCol = off_col, startRow = dat_row0,
@@ -381,22 +381,22 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
            textDecoration = "Bold", halign = "left"),
            rows = dat_row0:(dat_row0 + n - 1L), cols = off_col, gridExpand = TRUE)
   if (ncol_df > 1) {
-    # Datos centrados, SIN bordes de fila (cuerpo en blanco). numFmt "@" marca
-    # las celdas como texto a propósito y suprime el aviso verde de Excel.
+    # Centered data, NO row borders (blank body). numFmt "@" deliberately marks
+    # the cells as text and suppresses Excel's green warning.
     addStyle(wb, sheet_name, createStyle(fontName = TNR, fontSize = 10,
              halign = "center", numFmt = "@"),
              rows = dat_row0:(dat_row0 + n - 1L),
              cols = (off_col + 1L):(off_col + ncol_df - 1L), gridExpand = TRUE)
   }
 
-  # Filas de N (etiqueta empieza con "N "): se escriben como número entero real
-  # (numFmt "0") para que no salga el triángulo verde de "texto como número".
-  # La fila N queda encajonada: borde superior (la separa de los datos) y el
-  # borde inferior lo aporta el cierre del panel (más abajo).
+  # N rows (label starts with "N "): written as actual integers
+  # (numFmt "0") so Excel's green "number stored as text" triangle does not appear.
+  # The N row is boxed in: top border (separates it from the data) and the
+  # bottom border comes from the panel closing line (further below).
   idx_n <- which(grepl("^\\s*N\\b", as.character(df[[1]])))
   for (k in idx_n) {
     r <- dat_row0 + k - 1L
-    # Borde superior de la fila N, a todo el ancho (incluye la etiqueta)
+    # Top border of the N row, full width (includes the label)
     addStyle(wb, sheet_name, createStyle(border = "Top", borderColour = "#888888"),
              rows = r, cols = cols, gridExpand = TRUE, stack = TRUE)
     vals <- suppressWarnings(as.numeric(df[k, -1]))
@@ -411,23 +411,23 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
     }
   }
 
-  # Línea de cierre bajo la última fila de datos (medium, igual que el cierre de
-  # cada panel, para que los tres cierren con el mismo grosor)
+  # Closing line under the last data row (medium, same as each panel's
+  # closing line, so all three close with the same weight)
   addStyle(wb, sheet_name, createStyle(border = "Bottom", borderColour = "#888888",
            borderStyle = "medium"),
            rows = dat_row0 + n - 1L, cols = cols, gridExpand = TRUE, stack = TRUE)
 
-  # Etiquetas de panel: se detectan por la 1a columna que empieza con "Panel ".
-  # (también admite el parámetro `paneles` por compatibilidad.) La fila de la
-  # etiqueta queda ENCAJONADA igual que la fila N: línea medium ARRIBA y ABAJO
-  # de la propia etiqueta. Y al cierre del panel anterior, una línea medium bajo
-  # su fila N.
+  # Panel labels: detected by a 1st column starting with "Panel ".
+  # (the `paneles` parameter is also accepted for compatibility.) The label row
+  # is BOXED IN just like the N row: medium line ABOVE and BELOW the label
+  # itself. And at the close of the previous panel, a medium line under its
+  # N row.
   idx_panel <- which(grepl("^Panel ", trimws(as.character(df[[1]]))))
   if (!is.null(paneles)) idx_panel <- as.integer(paneles)
   for (k in idx_panel) {
     r <- dat_row0 + k - 1L
-    # Etiqueta del panel en negrita, encajonada: medium arriba y abajo a todo
-    # el ancho (la celda de la etiqueta conserva además la negrita).
+    # Panel label in bold, boxed in: medium above and below across the full
+    # width (the label cell also keeps the bold).
     addStyle(wb, sheet_name, createStyle(fontName = TNR, fontSize = 10,
              textDecoration = "Bold", border = "TopBottom",
              borderColour = "#888888", borderStyle = "medium"),
@@ -436,16 +436,16 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
              borderColour = "#888888", borderStyle = "medium"),
              rows = r, cols = (off_col + 1L):(off_col + ncol_df - 1L),
              gridExpand = TRUE, stack = TRUE)
-    # Línea inferior medium al cierre del panel anterior: la fila justo encima
-    # de la apertura de este panel (es la fila N del panel previo).
+    # Medium bottom line closing the previous panel: the row right above
+    # this panel's opening (it is the previous panel's N row).
     if (k > 1L)
       addStyle(wb, sheet_name, createStyle(border = "Bottom",
                borderColour = "#888888", borderStyle = "medium"),
                rows = r - 1L, cols = cols, gridExpand = TRUE, stack = TRUE)
   }
 
-  # Notas al pie: 9pt, todo de corrido en una sola celda (mergeada sobre el ancho
-  # de la tabla) con ajuste de texto. Las partes del vector se unen con espacio.
+  # Footnotes: 9pt, running prose in a single cell (merged across the table
+  # width) with text wrap. The vector's parts are joined with a space.
   if (!is.null(notas)) {
     nr <- dat_row0 + n
     texto <- paste0("Notas. ", paste(notas, collapse = " "))
@@ -453,17 +453,17 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
     mergeCells(wb, sheet_name, cols = cols, rows = nr)
     addStyle(wb, sheet_name, createStyle(fontName = TNR, fontSize = 9,
              valign = "top", wrapText = TRUE), rows = nr, cols = off_col)
-    # Alto de la fila de notas ajustado al texto real. El factor 1.7 convierte
-    # unidades de ancho de columna a caracteres Times 9pt: la fuente de notas
-    # es más pequeña que la por defecto, así que caben ~1.7 caracteres por
-    # unidad de ancho. Cada línea ocupa ~12.5 pt (9pt + interlineado) y sin
-    # colchón extra, para que no quede aire en blanco bajo las notas.
+    # Notes row height fitted to the actual text. The 1.7 factor converts
+    # column-width units to Times 9pt characters: the notes font is smaller
+    # than the default, so ~1.7 characters fit per width unit. Each line
+    # takes ~12.5 pt (9pt + leading) with no extra cushion, so no blank
+    # space is left under the notes.
     ancho_chars <- (22 + ancho_datos * max(ncol_df - 1L, 0)) * 1.7
     n_lineas    <- ceiling(nchar(texto) / ancho_chars)
     setRowHeights(wb, sheet_name, rows = nr, heights = 12.5 * n_lineas)
   }
 
-  # Anchos (col A margen=2; nombre de variable=22; datos=14) y alturas
+  # Widths (col A margin=2; variable name=22; data=14) and heights
   setColWidths(wb, sheet_name, cols = 1, widths = 2)
   setColWidths(wb, sheet_name, cols = off_col, widths = 22)
   if (ncol_df > 1) setColWidths(wb, sheet_name,
@@ -473,37 +473,37 @@ tabla_aer <- function(df, name, titulo, subheader = NULL, notas = NULL,
   setRowHeights(wb, sheet_name, rows = hdr_row, heights = 18)
 
   saveWorkbook(wb, file.path(PATH$tab, name), overwrite = TRUE)
-  message("Tabla guardada: ", file.path(PATH$tab, name))
+  message("Table saved: ", file.path(PATH$tab, name))
 }
 
-#' Anteponer cero a fracciones decimales y fijar decimales (0.357, no .357)
+#' Add a leading zero to decimal fractions and fix decimals (0.357, not .357)
 fmt_num <- function(x, dec = 2) {
   x <- round(x, dec)
-  x[x == 0] <- 0                       # evita el "-0.00" por redondeo
+  x[x == 0] <- 0                       # avoids "-0.00" from rounding
   ifelse(is.na(x), "", formatC(x, format = "f", digits = dec))
 }
 
-#' Iniciar log de script (sink a logs/)
+#' Start script log (sink to logs/)
 iniciar_log <- function(script_name) {
   log_file <- file.path(PATH$logs, paste0("log_", script_name, "_", Sys.Date(), ".txt"))
   sink(log_file, split = TRUE)
   cat("========================================\n")
   cat("Script:", script_name, "\n")
-  cat("Inicio:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
+  cat("Start:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
   cat("========================================\n\n")
   invisible(log_file)
 }
 
-#' Cerrar log de script
+#' Close script log
 cerrar_log <- function() {
   cat("\n========================================\n")
-  cat("Fin:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
+  cat("End:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
   cat("========================================\n")
   sink()
 }
 
 # =============================================================
-# 7. Confirmación
+# 7. Confirmation
 # =============================================================
-message("config.R cargado — choque petrolero 2022 × subsidios fósiles LATAM")
-message("Proyecto: ", PROJ_DIR)
+message("config.R loaded — 2022 oil shock × fossil fuel subsidies in LAC")
+message("Project: ", PROJ_DIR)
