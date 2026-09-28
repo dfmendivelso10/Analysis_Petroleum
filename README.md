@@ -1,106 +1,107 @@
-# Choque petrolero 2022 y subsidios a combustibles fósiles en Latinoamérica
+# The 2022 Oil Price Shock and Fossil Fuel Subsidies in Latin America
 
-Prueba técnica de economía aplicada. Cuantifica y caracteriza el efecto del choque de
-precio internacional del petróleo de 2022 sobre los subsidios a combustibles fósiles en
-América Latina, y discute sus implicaciones fiscales para una recomendación de política.
+Personal applied economics project. It quantifies and characterizes the effect of the 2022
+international oil price shock on fossil fuel subsidies in Latin America, and discusses its
+fiscal implications to inform a policy recommendation.
 
-## Pregunta
+## Research question
 
-¿Cómo afectó el choque de precios del petróleo de 2022 a los subsidios a combustibles
-fósiles en LATAM, y qué implica para la política fiscal y de subsidios?
+How did the 2022 oil price shock affect fossil fuel subsidies in Latin America, and what
+does it imply for fiscal and subsidy policy?
 
-## Fuentes de datos
+## Data sources
 
-- **IMF Fossil Fuel Subsidies Database** (obligatoria): subsidios explícitos e implícitos.
-- **EIA**: precio internacional del petróleo Brent.
-- **FMI, World Economic Outlook** (vía IMF DataMapper): indicadores fiscales (deuda pública
-  bruta, balance fiscal, ingreso del gobierno general). Se usa el WEO y no el Banco Mundial
-  porque cubre los 34 países sin missing values (el Banco Mundial deja 50–79 % de missing values en el Caribe).
+- **IMF Fossil Fuel Subsidies Database**: explicit and implicit subsidies.
+- **EIA**: Brent crude oil price.
+- **IMF World Economic Outlook** (via IMF DataMapper): fiscal indicators (gross public debt,
+  fiscal balance, general government revenue). The WEO is used instead of the World Bank
+  because it covers all 34 countries with no missing values (World Bank data has 50–79 %
+  missing values for the Caribbean).
 
-Descargadas como referencia pero no integradas al panel: riesgo país EMBIG (BCRP) y
-reservas internacionales (World Bank). El detalle de cada fuente, con URL y motivo de
-inclusión o exclusión, está en `data/raw/FUENTES.md`.
+Downloaded for reference but not merged into the panel: EMBIG country risk (BCRP) and
+international reserves (World Bank). Details for each source, including URL and the reason
+for inclusion or exclusion, are in `data/raw/FUENTES.md`.
 
-## Estructura
+## Structure
 
 ```
-code/            config.R + modelo (06), pieza fiscal (07) y robustez (08)
-code/limpieza/   descarga, procesamiento, validación y diccionario
-code/descriptivas/  tablas y figuras descriptivas (01–05)
-data/raw/        Fuentes crudas sin modificar (IMF .xlsb, Brent, fiscal WEO)
-data/processed/  Paneles limpios (.xlsx)
-outputs/         figures/ y tables/
-docs/            Pieza de comunicación final
+code/               config.R + model (06), fiscal analysis (07) and robustness (08)
+code/limpieza/      download, processing, validation and data dictionary
+code/descriptivas/  descriptive tables and figures (01–05)
+data/raw/           Unmodified raw sources (IMF .xlsb, Brent, WEO fiscal data)
+data/processed/     Clean panels (.xlsx)
+outputs/            figures/ and tables/
+docs/               Communication materials
 ```
 
-## Reproducir
+## Reproducing the results
 
-Requiere **Python 3** (datos) y **R 4.4+** (análisis). Desde la raíz del proyecto:
+Requires **Python 3** (data) and **R 4.4+** (analysis). From the project root:
 
 ```bash
-# Dependencias (una vez)
+# Dependencies (once)
 pip install pyxlsb pandas openpyxl requests
 Rscript -e 'install.packages(c("here","tidyverse","readxl","writexl","openxlsx","patchwork","fixest","sandwich","lmtest"))'
 
-# 1) Descargar fuentes complementarias (precio Brent y datos fiscales)
+# 1) Download complementary sources (Brent price and fiscal data)
 python3 code/limpieza/00a_descargar_brent.py
 python3 code/limpieza/00b_descargar_fiscal.py
-# Opcionales (descargadas pero no integradas al panel; ver data/raw/FUENTES.md)
-python3 code/limpieza/00d_descargar_riesgo.py     # riesgo país EMBIG
-python3 code/limpieza/00e_descargar_reservas.py   # reservas internacionales
+# Optional (downloaded but not merged into the panel; see data/raw/FUENTES.md)
+python3 code/limpieza/00d_descargar_riesgo.py     # EMBIG country risk
+python3 code/limpieza/00e_descargar_reservas.py   # international reserves
 
-# 2) Procesamiento: IMF + Brent + fiscal -> paneles en data/processed/  (~9 s)
+# 2) Processing: IMF + Brent + fiscal -> panels in data/processed/  (~9 s)
 python3 code/limpieza/00c_procesar.py
 python3 code/limpieza/01_variables.py
 python3 code/limpieza/02_validar.py
 
-# 3) Descriptivas en R (tablas y figuras; leen los paneles .xlsx)
-Rscript code/descriptivas/01_tabla_resumen.R   # Tabla 1: descriptiva por grupo
-Rscript code/descriptivas/02_tabla_paises.R    # Tabla 2: clasificación de los 34 países
-Rscript code/descriptivas/03_fig_ruptura.R     # Figura 1: ruptura 2022
-Rscript code/descriptivas/04_fig_brent.R       # Figura 2: co-movimiento Brent
-Rscript code/descriptivas/05_fig_impacto.R     # Figura 3: cambio por país
+# 3) Descriptives in R (tables and figures; read the .xlsx panels)
+Rscript code/descriptivas/01_tabla_resumen.R   # Table 1: descriptives by group
+Rscript code/descriptivas/02_tabla_paises.R    # Table 2: classification of the 34 countries
+Rscript code/descriptivas/03_fig_ruptura.R     # Figure 1: 2022 structural break
+Rscript code/descriptivas/04_fig_brent.R       # Figure 2: co-movement with Brent
+Rscript code/descriptivas/05_fig_impacto.R     # Figure 3: change by country
 
-# 4) Modelo y análisis en R
-Rscript code/06_modelo.R       # DiD/TWFE: efecto central + event study (Tabla 4, Figura 4)
-Rscript code/07_pieza_fiscal.R # matriz subsidio–deuda y recomendación (Tabla 5, Figura 5)
-Rscript code/08_robustez.R     # leave-one-out y exclusión de extremos (Tabla 6)
+# 4) Model and analysis in R
+Rscript code/06_modelo.R       # DiD/TWFE: main effect + event study (Table 4, Figure 4)
+Rscript code/07_pieza_fiscal.R # subsidy–debt matrix and recommendation (Table 5, Figure 5)
+Rscript code/08_robustez.R     # leave-one-out and outlier exclusion (Table 6)
 ```
 
-El procesamiento está en Python (pyxlsb) porque leer el `.xlsb` del IMF en R es
-prohibitivamente lento; el análisis es 100% R. Todos los outputs se regeneran desde
+Processing is done in Python (pyxlsb) because reading the IMF `.xlsb` file in R is
+prohibitively slow; the analysis is 100% R. All outputs can be regenerated from
 `data/raw/`.
 
-## Convenciones visuales
+## Visual conventions
 
-Las figuras siguen la paleta del **World Bank Data Visualization Style Guide**
-(https://wbg-vis-design.vercel.app/, paquetes `wbpyplot` / `wbplot`), con tipografía
-Times New Roman. Las tablas siguen un estándar tipo AER (Times New Roman, solo líneas
-horizontales, notas al pie de corrido). Ambos se definen de forma centralizada en
-`code/config.R` y se documentan en `docs/convenciones.md`.
+Figures follow the **World Bank Data Visualization Style Guide** palette
+(https://wbg-vis-design.vercel.app/, packages `wbpyplot` / `wbplot`), set in Times New
+Roman. Tables follow an AER-style standard (Times New Roman, horizontal rules only, running
+footnotes). Both are defined centrally in `code/config.R` and documented in
+`docs/convenciones.md`.
 
-## Uso de inteligencia artificial
+## Use of AI
 
-Para la elaboración de esta prueba se utilizó **Claude Code (Anthropic)** como asistente
-de apoyo en tres tareas específicas: (i) validación de datos y consistencia numérica entre
-el panel procesado y los resultados reportados; (ii) producción de tablas en formato AER
-mediante scripts en R; y (iii) construcción y edición de la presentación en Beamer, con
-compilación iterativa para verificar ausencia de errores. En todos los casos, las decisiones
-metodológicas —elección del estimador, clasificación de países, variables de resultado y
-estrategia de identificación— fueron tomadas bajo criterio del autor.
+**Claude Code (Anthropic)** was used as a support assistant for three specific tasks:
+(i) data validation and numerical consistency checks between the processed panel and the
+reported results; (ii) producing AER-format tables through R scripts; and (iii) building and
+editing the Beamer presentation, with iterative compilation to ensure it builds without
+errors. In every case, methodological decisions —choice of estimator, country
+classification, outcome variables, and identification strategy—were made by the author.
 
-La carpeta `.claude/` documenta cómo se configuró la asistencia. Contiene:
+The `.claude/` folder documents how the assistant was configured. It contains:
 
-- `.claude/rules/` — instrucciones que definen estándares de código, econometría, tablas y
-  redacción académica que el asistente debía respetar en cada tarea.
-- `.claude/agents/` — revisores especializados (código R, econometría, proofreading) que se
-  ejecutaban sobre los scripts y slides antes de reportar un resultado como terminado.
-- `.claude/skills/` — rutinas reutilizables para tareas recurrentes (compilar LaTeX, correr
-  el análisis, hacer commits).
+- `.claude/rules/` — instructions defining the code, econometrics, table and academic
+  writing standards the assistant had to follow in every task.
+- `.claude/agents/` — specialized reviewers (R code, econometrics, proofreading) run on the
+  scripts and slides before a result was reported as finished.
+- `.claude/skills/` — reusable routines for recurring tasks (compiling LaTeX, running the
+  analysis, committing).
 
-## Entregables
+## Repository contents
 
-1. Datos — `data/`
-2. Código de procesamiento — `code/limpieza/`
-3. Código de análisis — `code/descriptivas/`, `code/04_model.R`
-4. Comunicación de resultados — `Prueba_Tecnica_Completa/`
+1. Data — `data/`
+2. Processing code — `code/limpieza/`
+3. Analysis code — `code/descriptivas/`, `code/06_modelo.R`, `code/07_pieza_fiscal.R`,
+   `code/08_robustez.R`
+4. Results presentation (Beamer, in Spanish) — `Prueba_Tecnica_Completa/`
