@@ -183,14 +183,14 @@ nota <- paste0(
   "aggregate GDP in panels (c)\u2013(d). The dashed line marks the ", YEAR_SHOCK,
   " shock, when the LAC total rose from USD ", fmt_num(v21, 1), " billion to USD ",
   fmt_num(v22, 1), " billion (+", fmt_num(jump_pct, 1), "%). ",
-  "Countries are classified by net oil trade position, not by production. ",
+  "Countries are classified by net oil trade position (average 2015\u20132019 net exports of crude oil and refined products, UN Comtrade), not by production. ",
   "Net oil exporters (", num_en(n_exp), "): ", enum_en(labels_exp),
   "; the other ", num_en(n_pais - n_exp), " countries are net oil importers. N = ",
   n_pais, " countries, ", yr_range(min(df$anio), max(df$anio)), "."
 )
 
 save_fig_png(fig, "fig1_break.png", nota = nota,
-             fuente = "IMF Fossil Fuel Subsidies Database.",
+             fuente = "IMF Fossil Fuel Subsidies Database; UN Comtrade.",
              w = 6.5, h = 5.2, dpi = 300)
 message("  Saved: fig1_break.png")
 

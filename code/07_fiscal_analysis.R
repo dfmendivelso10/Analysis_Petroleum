@@ -16,7 +16,7 @@
 #     colour by exposure group; size = absolute 2021-2022 change in the subsidy
 #     (USD bn), hollow points for decreases. The medians split the plane into four
 #     quadrants (urgent / gradual reform / etc.).
-#   Table 5: country-level backup (subsidy, observed change, illustrative
+#   Table 6: country-level backup (subsidy, observed change, illustrative
 #     differential cost = beta3 x 2022 GDP for ALL net exporters, debt, fiscal
 #     balance, quadrant), one panel per group.
 #
@@ -25,9 +25,9 @@
 #         outputs/results/08_robustness.rds (leave-one-out range for the Fig. 5 note;
 #                                            08 depends only on the panel)
 # Output: outputs/figures/fig5_fiscal_matrix.png  (PNG 300 dpi)
-#         outputs/tables/tab5_fiscal.xlsx         (AER table)
+#         outputs/tables/tab6_fiscal.xlsx         (AER table)
 # N matrix: 26 countries with explicit subsidy > 0.05% of GDP in 2022
-#           (7 net exporters, 19 importers)
+#           (exporter/importer split from the classification in 01_variables.py)
 ###############################################################
 
 source(here::here("code/config.R"))
@@ -234,7 +234,7 @@ save_fig_png(fig, "fig5_fiscal_matrix.png", nota = nota_fig,
              w = 6.5, h = 6.6, dpi = 300)
 
 # ---------------------------------------------------------------------------
-# 5. Table 5: country-level backup (one panel per group)
+# 5. Table 6: country-level backup (one panel per group)
 # ---------------------------------------------------------------------------
 
 # One row per country; "n.a." for the illustrative cost of importers (comparison group)
@@ -273,11 +273,11 @@ names(tabla5) <- c("Country", "Subsidy\n(% of GDP)", "Change\n2021\u201322 (pp)"
                    "Illustrative cost\n(USD billion)", "Debt\n(% of GDP)",
                    "Balance\n(% of GDP)", "Quadrant")
 
-tab_path <- file.path(PATH$tab, "tab5_fiscal.xlsx")
+tab_path <- file.path(PATH$tab, "tab6_fiscal.xlsx")
 tabla_aer(
   tabla5,
-  name        = "tab5_fiscal.xlsx",
-  titulo      = paste0("Table 5. Subsidy, illustrative shock cost, and fiscal space ",
+  name        = "tab6_fiscal.xlsx",
+  titulo      = paste0("Table 6. Subsidy, illustrative shock cost, and fiscal space ",
                        "by country (", YEAR_SHOCK, ")"),
   ancho_datos = 13,
   landscape   = TRUE,
@@ -290,7 +290,9 @@ tabla_aer(
            "billion), an illustrative differential cost (exporters' subsidy increase beyond ",
            "importers'), not the total cost of the shock; ",
            "the 95% confidence interval of \u03b2\u2083 (", fmt_num(beta3$ci_low, 2), " to ",
-           fmt_num(beta3$ci_high, 2), ") includes zero. n.a.: net oil importers, the ",
+           fmt_num(beta3$ci_high, 2), ") ",
+           if (beta3$ci_low <= 0 && beta3$ci_high >= 0) "includes" else "excludes",
+           " zero. n.a.: net oil importers, the ",
            "comparison group."),
     paste0("Debt: gross public debt; Balance: general government fiscal balance (negative = ",
            "deficit); both % of GDP. Quadrant: position relative to the sample medians of the subsidy (", fmt_num(med_sub, 2), "% of GDP) and ",
@@ -305,21 +307,26 @@ message("\nTable saved: ", tab_path)
 # ---------------------------------------------------------------------------
 
 fig_path <- file.path(PATH$fig, "fig5_fiscal_matrix.png")
-# Colombia's cost must reproduce beta3 x its GDP; every exporter has a cost
-costo_col <- dat$costo_beta[dat$iso == "COL"]
+# Every exporter in the matrix has a cost equal to beta3 x its GDP (checked on the
+# first one); the exporter count must match the panel classification
+iso_chk   <- dat$iso[dat$exportador_neto][1]
+costo_col <- dat$costo_beta[dat$iso == iso_chk]
+n_exp_panel <- dplyr::n_distinct(df$iso[df$exportador_neto & df$anio == YEAR_SHOCK &
+                                        100 * df$expl_pctgdp > PISO])
 stopifnot(
   file.exists(fig_path), file.info(fig_path)$size > 50000,
   file.exists(tab_path),
-  n_pais == 26, n_exp == 7,
-  abs(costo_col - BETA3 * dat$gdp[dat$iso == "COL"]) < 1e-6,
+  n_pais == 26, n_exp == n_exp_panel,
+  abs(costo_col - BETA3 * dat$gdp[dat$iso == iso_chk]) < 1e-6,
   all(!is.na(dat$costo_beta[dat$exportador_neto])),
   all(is.na(dat$costo_beta[!dat$exportador_neto])),
   all(dat$costo_low <= dat$costo_beta & dat$costo_beta <= dat$costo_high, na.rm = TRUE)
 )
 cat("\n--- Verification ---\n")
 cat("Figure and table generated: OK\n")
-cat("Exporters in the matrix:", n_exp, "(expected 7): OK\n")
-cat("Illustrative cost Colombia:", fmt_num(costo_col, 2), "USD bn (= beta3 x GDP): OK\n")
+cat("Exporters in the matrix:", n_exp, "(matches the panel classification): OK\n")
+cat("Illustrative cost", country_en(iso_chk), ":", fmt_num(costo_col, 2),
+    "USD bn (= beta3 x GDP): OK\n")
 cat("VERIFICATION PASS\n")
 
 # ---------------------------------------------------------------------------

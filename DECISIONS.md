@@ -19,9 +19,9 @@ they were made. Details and numbers are in the working paper (`report/`).
   mirror data where a country does not report). Chosen before seeing results; the earlier
   hand-coded list of seven exporters and other variants are reported only as sensitivity.
 - **Treatment = net oil exporter × post-2022.** Classification is by *net* oil trade
-  position, not by whether a country produces oil: Argentina and Brazil extract crude
-  but import more refined products than they export, so they do not capture oil rents
-  when prices rise. The Brent level itself is absorbed by year fixed effects;
+  position, not by whether a country produces oil: Mexico and Bolivia export crude or
+  gas but import more refined products than they sell abroad, so they are net oil
+  importers; Brazil's crude exports exceed its refined imports, so it is an exporter. The Brent level itself is absorbed by year fixed effects;
   identification comes only from the interaction.
 - **Outcome = explicit subsidy (% of GDP).** The explicit subsidy is the gap between
   consumer price and supply cost, so it reacts directly to the oil price. The implicit
@@ -45,7 +45,7 @@ they were made. Details and numbers are in the working paper (`report/`).
   2015 is the first year extracted from the IMF database.
 - **IMF WEO instead of World Bank for fiscal data.** The policy analysis crosses debt
   against subsidies country by country, which requires full coverage. The WEO covers
-  all 34 countries with no missing values; the World Bank series leave 50–79 % missing
+  all 34 countries with no missing values; the World Bank series leave 45–79% missing
   values for the Caribbean.
 - **Country risk (EMBIG) and reserves downloaded but not merged.** EMBIG covers only
   8 of 34 countries and would bias the sample toward large economies; reserves were
@@ -56,19 +56,23 @@ they were made. Details and numbers are in the working paper (`report/`).
 
 ## Inference and robustness
 
-- **Small treated group (7 exporters).** Standard errors are clustered by country, but
-  with seven treated clusters conventional inference is likely optimistic (p ≈ 0.06 for
-  the main effect). Wild cluster bootstrap, randomization inference and Conley–Taber
-  intervals are the natural next checks; they are listed as extensions, not claimed.
-- **Parallel trends assessed with an event study, and reported honestly.** Pre-shock
-  coefficients show no monotonic trend, but a joint test rejects that they are all zero
-  (F(6, 33) = 4.09, p = 0.004) and they co-move with the Brent price. With a single
-  post-shock year this can bias the estimate, so the paper discusses it rather than
-  attributing it to noise, and points to Rambachan–Roth sensitivity analysis.
+- **Small treated group (5 exporters).** Standard errors are clustered by country, but
+  with five treated clusters conventional inference is likely optimistic. Wild cluster
+  bootstrap, randomization inference and Conley–Taber intervals are the natural next
+  checks; they are listed as extensions, not claimed.
+- **Classification sensitivity reported, not chosen among.** Table 5 re-estimates the
+  model under pre-specified alternative definitions (gas included, 2019–2021 window,
+  without Guyana, the earlier hand-coded list, continuous exposure) and, clearly
+  labelled as post hoc, without Puerto Rico, without Trinidad and Tobago (knife-edge
+  case) and the continuous measure without Venezuela. The earlier hand-coded list gave
+  p = 0.06; the pre-specified rule gives p = 0.21, and the paper reports the latter.
+- **Puerto Rico classified from EIA, not Comtrade.** Comtrade records it inside the
+  United States; it has no crude production or operating refinery, so it is a net
+  importer by any definition.
 - **Leave-one-out instead of dropping outliers by hand.** Venezuela is an extreme value,
   but dropping it ad hoc would be selection on the outcome. Re-estimating without each
-  exporter keeps the effect positive in all cases
-  (range 1.15–2.21 pp of GDP).
+  exporter keeps the estimate positive (0.28 to 1.81 pp of GDP), but without Venezuela it
+  is close to zero: the result depends heavily on one country.
 
 ## Policy analysis
 
@@ -78,8 +82,9 @@ they were made. Details and numbers are in the working paper (`report/`).
 - **The matrix is descriptive prioritisation, not a causal model.** It indicates where
   reform is most pressing; it does not estimate the effect of any specific policy.
 - **Illustrative differential cost for all exporters.** β3 × 2022 GDP is computed for
-  all seven exporters (including Guyana, whose subsidy fell, to avoid selecting on the
-  outcome), with a range from β3's 95% CI. It is not the total cost of the shock.
+  every exporter in the matrix, regardless of how its own subsidy moved (to avoid
+  selecting on the outcome), with a range from β3's 95% CI. It is not the total cost of
+  the shock.
 
 ## Communication
 

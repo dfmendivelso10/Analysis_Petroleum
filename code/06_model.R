@@ -218,8 +218,10 @@ tabla_aer(
            "the corresponding change among net oil importers (the comparison group)."),
     paste0("Dependent variable (% of GDP): explicit subsidy in columns (1)\u2013(2), ",
            "implicit in (3), and total in (4). Columns (2)\u2013(4) include country and year ",
-           "fixed effects. For the implicit component, the effect is small and statistically ",
-           "insignificant."),
+           "fixed effects. For the implicit component, the effect is ",
+           fmt_num(coef(m3_impl)[b], 2), " pp of GDP and ",
+           if (pvalue(m3_impl)[b] >= 0.10) "not statistically significant."
+           else paste0("statistically significant (", fmt_p(pvalue(m3_impl)[b]), ").")),
     paste("Standard errors are clustered by country in parentheses.",
           "\u2020 p < 0.10, * p < 0.05, ** p < 0.01, *** p < 0.001."),
     paste0("Sample: ", yr_static, " (", n_c_static, " countries; ", n_c_alt,
@@ -268,12 +270,19 @@ txt_es_na <- if (nrow(es_na) == 0) "" else paste0(
                              yr_range(es_na$a0, es_na$a1), as.character(es_na$a0)))),
   " missing")
 
+# Is the pre-shock path (2015-2020 coefs, then the 2021 base = 0) monotonic?
+pre_path      <- c(coef(m_es)[terms_pre], 0)
+pre_monotonic <- all(diff(pre_path) >= 0) || all(diff(pre_path) <= 0)
+
 nota_es <- paste0(
   "Coefficients on the year \u00d7 net oil exporter interactions (percentage points of GDP), ",
   "with 2021 as the reference year (hollow point), and 95% confidence intervals from ",
   "standard errors clustered by country. The dashed line marks the ", YEAR_SHOCK, " shock. ",
-  "Before ", YEAR_SHOCK, ", the coefficients fluctuate without a monotonic trend, but a joint ",
-  "test rejects that all ", num_en(length(terms_pre)), " are zero (F(", w_df1, ", ", w_df2,
+  "Before ", YEAR_SHOCK, ", the coefficients ",
+  if (pre_monotonic) "move monotonically" else "fluctuate without a monotonic trend",
+  "; a joint ",
+  "test ", if (w_p < 0.05) "rejects" else "does not reject", " that all ",
+  num_en(length(terms_pre)), " are zero (F(", w_df1, ", ", w_df2,
   ") = ", fmt_num(w_pre$stat, 2), ", ", fmt_p(w_p), "). Groups: ", num_en(n_exp),
   " net oil exporters and ", num_en(n_pais - n_exp), " net oil importers. N = ", es_n_obs,
   " country-years (", es_n_clusters, " countries, ", yr_range(min(df$anio), max(df$anio)),

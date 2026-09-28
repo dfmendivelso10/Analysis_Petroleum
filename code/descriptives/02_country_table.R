@@ -6,11 +6,12 @@
 #   Country-by-year breakdown of the explicit subsidy as % of GDP (2015-2023),
 #   with the shock change (2022 vs pre-shock average 2015-2021) in the last
 #   column. Two panels:
-#     Panel A: net oil exporters (7)
-#     Panel B: net oil importers (27)
+#     Panel A: net oil exporters (classification from 01_variables.py)
+#     Panel B: net oil importers
 #   Sorted by size of the change within each panel. Landscape orientation.
 #
 # Input:  data/processed/panel_country_year.xlsx
+#         outputs/results/classification.rds (01_variables.py; external-source countries)
 # Output: outputs/tables/tab2_countries.xlsx
 #         outputs/results/02_country_table.rds (key numbers for the paper)
 
@@ -80,6 +81,14 @@ txt_na <- vapply(seq_len(nrow(faltantes)), function(i) {
 }, character(1))
 
 pre_lbl <- yr_range(min(anios), 2021)
+
+# Countries classified from an outside source (no Comtrade data), for the note
+cls_ext <- readRDS(file.path(PATH$res, "classification.rds"))
+ext     <- cls_ext$iso[cls_ext$data_source == "external"]
+txt_ext <- if (length(ext) == 0) "" else paste0(
+  " ", enum_en(country_en(ext)), ", absent from UN Comtrade, ",
+  if (length(ext) == 1) "is" else "are",
+  " classified as a net oil importer from U.S. Energy Information Administration data.")
 tabla_aer(
   tabla,
   name        = "tab2_countries.xlsx",
@@ -93,10 +102,11 @@ tabla_aer(
            "indicates a subsidy below 0.005% of GDP",
            if (length(txt_na) > 0) paste0("; n.a.: not available (", enum_en(txt_na), ")"),
            "."),
-    paste0("Countries are classified by net oil trade position, not by production (",
-           num_en(nrow(exp)), " net oil exporters and ", num_en(nrow(imp)),
-           " net oil importers)."),
-    "Source: IMF Fossil Fuel Subsidies Database."
+    paste0("Countries are classified by net oil trade position (average ",
+           "2015\u20132019 net exports of crude oil and refined products, UN Comtrade), ",
+           "not by production (", num_en(nrow(exp)), " net oil exporters and ",
+           num_en(nrow(imp)), " net oil importers).", txt_ext),
+    "Source: IMF Fossil Fuel Subsidies Database; UN Comtrade."
   )
 )
 

@@ -60,13 +60,16 @@ br <- res("03_fig_break.rds")        # Figure 1
 bt <- res("04_fig_brent.rds")        # Figure 2
 im <- res("05_fig_impact.rds")       # Figure 3
 m  <- res("06_model.rds")            # Table 3 and Figure 4
-fa <- res("07_fiscal_analysis.rds")  # Table 5 and Figure 5
+fa <- res("07_fiscal_analysis.rds")  # Table 6 and Figure 5
 rb <- res("08_robustness.rds")       # Table 4
+cs <- res("09_classification_sensitivity.rds")  # classification sensitivity table
+clf <- res("classification.rds")     # treatment classification (UN Comtrade)
 
 # Panels, used only for sample coverage facts
 panel <- readxl::read_excel(here("data", "processed", "panel_country_year.xlsx"))
 wb    <- read.csv(here("data", "raw", "fiscal_wb.csv"))
 weo   <- readxl::read_excel(here("data", "raw", "fiscal_weo.xlsx"))
+oiltr <- read.csv(here("data", "raw", "oil_trade_comtrade.csv"))   # HS breakdown of switches
 
 # ---- Formatting helpers ------------------------------------------------------
 minus <- "\u2212"
@@ -132,15 +135,60 @@ b_2023 <- bs$brent_usd[bs$year == 2023]
 stopifnot(names(which.max(b_diff)) == "2022",   # largest absolute annual rise
           names(which.max(bs$brent_usd)) == "2022")
 
+# ---- Treatment classification (Section 2.4) ---------------------------------
+cfv <- function(i, v) clf[[v]][clf$iso == i]
+stopifnot(setequal(clf$country[clf$exportador_neto], exporters),
+          cfv("VEN", "data_source") == "mirror",                 # Venezuela: mirror data
+          cfv("PRI", "data_source") == "external",               # Puerto Rico: EIA exception
+          !cfv("PRI", "exportador_neto"),
+          all(clf$exportador_neto == (!is.na(clf$net_oil_trade_usd_1519) &
+                                      clf$net_oil_trade_usd_1519 > 0)))
+# Net trade by HS heading, 2015-2019 annual average (USD billion), from the raw Comtrade file
+ot <- oiltr[oiltr$year %in% 2015:2019 & oiltr$cmd %in% c(2709, 2710, 2711), ]
+ot$net <- ifelse(ot$flow == "X", 1, -1) * ot$value_usd
+hs <- function(i, c) sum(ot$net[ot$iso == i & ot$cmd == c]) / 5 / 1e9
+tto_y <- tapply(ot$net[ot$iso == "TTO" & ot$cmd %in% c(2709, 2710)],
+                ot$year[ot$iso == "TTO" & ot$cmd %in% c(2709, 2710)], sum)
+tto_neg <- as.integer(names(tto_y)[tto_y < 0]); tto_pos <- as.integer(names(tto_y)[tto_y > 0])
+tto_avg_m <- cfv("TTO", "net_oil_trade_usd_1519") / 1e6
+# switches relative to the previous hand-coded list
+sw <- cs$switches$v5_manual
+iso2c <- function(i) clf$country[match(i, clf$iso)]
+stopifnot(setequal(sw$to_exporter, c("BOL", "GUY", "MEX")), setequal(sw$to_importer, "BRA"),
+          all(unlist(lapply(c("MEX", "BOL", "BRA", "ARG", "TTO"), function(i)
+            all(cfv(i, "n_years_1519") == 5, cfv(i, "data_source") == "own")))),
+          # the HS recomputation reproduces the classification for these countries
+          isTRUE(all.equal(hs("MEX", 2709) + hs("MEX", 2710), cfv("MEX", "net_oil_trade_usd_1519") / 1e9)),
+          isTRUE(all.equal(hs("BRA", 2709) + hs("BRA", 2710), cfv("BRA", "net_oil_trade_usd_1519") / 1e9)),
+          hs("MEX", 2709) > 0, -hs("MEX", 2710) > hs("MEX", 2709),     # Mexico: crude < refined imports
+          hs("BOL", 2711) > 0, hs("BOL", 2711) > abs(hs("BOL", 2709)), # Bolivia: mainly gas
+          -hs("BOL", 2710) > hs("BOL", 2709),                          # refined imports > crude exports
+          hs("BRA", 2709) > -hs("BRA", 2710), hs("BRA", 2710) < 0,     # Brazil: crude > refined imports
+          hs("ARG", 2709) > 0, -hs("ARG", 2710) > hs("ARG", 2709),     # Argentina: produces, net importer
+          identical(tto_neg, c(2015L, 2016L)), identical(tto_pos, 2017:2019),  # TTO sign flips
+          !cfv("GUY", "exportador_neto"), cfv("GUY", "exportador_1921"),
+          cfv("GUY", "net_oil_trade_usd_1519") < 0, cfv("GUY", "net_oil_trade_usd_1921") > 0)
+
 # ---- Descriptives (Table 1, Figure 1) ----------------------------------------
 cg <- br$change_2021_2022
 cgv <- function(g, v) cg[[v]][cg$group == g]
 sy <- s1$by_group_year
 syv <- function(g, y, v) sy[[v]][sy$group == g & sy$year == y]
+# GDP-weighted aggregates: importers' subsidy rose slightly more (in pp) than exporters'
+stopifnot(cgv("Net importer", "change_pp") > cgv("Net exporter", "change_pp"),
+          cgv("Net exporter", "change_usd_bn") < cgv("Net importer", "change_usd_bn"),
+          syv("Net importers", 2021, "explicit_pct_gdp") > syv("Net exporters", 2021, "explicit_pct_gdp"),
+          all(sapply(c("Net exporters", "Net importers"), function(g)
+            syv(g, 2022, "implicit_pct_gdp") > syv(g, 2021, "implicit_pct_gdp"))))
+lac_s <- sy[sy$group == "LAC total" & sy$year < 2022, ]
+stopifnot(lac_s$year[which.max(lac_s$explicit_pct_gdp)] == 2018,
+          lac_s$year[which.min(lac_s$explicit_pct_gdp)] == 2020)
 
 cl <- ct$classification
 ven_y <- unlist(cl[cl$country == "Venezuela", grep("^explicit_pct_gdp_", names(cl))])
 n_zero22 <- sum(round(cl$y2022, 2) <= im$floor_pct_gdp, na.rm = TRUE)
+bra22 <- cl$y2022[cl$country == "Brazil"]
+stopifnot(round(bra22, 2) <= im$floor_pct_gdp)          # Brazil among the near-zero countries
 
 # ---- Figure 3 ----------------------------------------------------------------
 imp <- im$impact[order(-im$impact$change_pp), ]
@@ -154,6 +202,9 @@ exp_below_arg <- sum(exp_ranked$change_pp < imv("Argentina"))
 tiny_up <- imp$country[imp$change_pp > 0 & imp$change_pp < 0.005]
 top3_alt <- head(cl$country[order(-cl$change_pp)], 3)   # 2015-2021 baseline (Table 2)
 same_top3 <- setequal(top3$country, top3_alt)
+top3_imp <- top3$country[top3$group == "Net importer"]
+stopifnot(top3$group[1] == "Net importer", identical(neg_exp, "Brazil"),
+          all(abs(unlist(cl[cl$country == "Brazil", grep("^explicit_pct_gdp_", names(cl))])) < 0.1))
 
 # ---- Model (Table 3, Figure 4) -----------------------------------------------
 tw <- m$twfe
@@ -167,53 +218,91 @@ dd <- m$did_2x2
 es <- m$event_study
 es_pre <- es[es$year < base_year, ]
 es22 <- es[es$year == 2022, ]; es23 <- es[es$year == 2023, ]
-pre_all_cover0 <- all(es_pre$ci_low < 0 & es_pre$ci_high > 0)
-pre_sign_changes <- sum(diff(sign(es_pre$coef)) != 0)
-pre_max <- es_pre[which.max(abs(es_pre$coef)), ]
-stopifnot(pre_all_cover0)
+pre_cover0 <- es_pre$ci_low < 0 & es_pre$ci_high > 0
+pre_excl0  <- es_pre[!pre_cover0, ]                       # leads whose CI excludes zero
+n_pre_pos  <- sum(es_pre$coef > 0)
+pre_neg    <- es_pre$year[es_pre$coef < 0]
+b3_share   <- t2$coef / cell("Net exporter", "pre_2015_2021")
 # qualitative claims made in the text
-pre_gap <- merge(sy[sy$group == "Net exporters" & sy$year < 2022, c("year", "explicit_pct_gdp")],
-                 sy[sy$group == "Net importers" & sy$year < 2022, c("year", "explicit_pct_gdp")],
-                 by = "year")
-stopifnot(all(pre_gap[[2]] > pre_gap[[3]]),                       # exporters subsidize more pre-shock
-          t2$coef > 0.5 * cell("Net exporter", "pre_2015_2021"),   # "exceeds half" claim
-          t3$p_value > 0.10, es23$ci_low < 0,
-          t2$ci_low < 0, t2$p_value > 0.05, t2$p_value < 0.10,    # "includes zero", 10% level
+stopifnot(nrow(pre_excl0) == 1, pre_excl0$year == 2015, pre_excl0$ci_low > 0,
+          cell("Net exporter", "pre_2015_2021") > cell("Net importer", "pre_2015_2021"),
+          t2$coef > 0, t2$ci_low < 0, t2$p_value > 0.10,          # positive, not significant
+          t2$ci_high > 2 * t2$coef,                               # CI admits effects > twice beta3
+          t3$p_value > 0.10, t3$coef < 0, es23$ci_low < 0,
+          es22$ci_low < 0, es22$coef == max(es$coef), es23$coef < es22$coef,
+          t4$p_value > 0.10,
+          es22$coef > t2$coef,                                    # delta_2022 > static beta3
           dd$importer_change > 0)                                  # importers' subsidy also rose
 
 # Pre-trend test with G - 1 denominator degrees of freedom
 wald <- m$pretrend_wald
 wald_df2 <- wald$df2
 wald_p   <- wald$p_value
-stopifnot(wald_df2 == n_c - 1)                     # F(6, G - 1)
+stopifnot(wald_df2 == n_c - 1,                     # F(6, G - 1)
+          wald_p > 0.10)                           # joint test does not reject
 
-# Leads (with the base-year zero) against the Brent price
+# Leads against the Brent price
 lb <- merge(es[es$year <= base_year, c("year", "coef")], bs[, c("year", "brent_usd")], by = "year")
-r_lead_brent <- cor(lb$coef, lb$brent_usd)
-lb_fit  <- lm(coef ~ brent_usd, data = lb)
-lb_pred22 <- unname(predict(lb_fit, data.frame(brent_usd = bt$brent_2022)))
-pre_steps <- diff(lb$coef); names(pre_steps) <- lb$year[-1]
-max_step  <- max(abs(pre_steps))
-max_step_y <- names(pre_steps)[which.max(abs(pre_steps))]
-d2020  <- es$coef[es$year == 2020]
-step21 <- pre_steps[[as.character(base_year)]]
-lead_hi <- es_pre$year[es_pre$coef > 0.5]                 # high-price years with positive leads
-lead_lo <- es_pre$year[es_pre$coef < -0.3]                # low-price years with negative leads
-stopifnot(r_lead_brent > 0.5, step21 > 0, d2020 < 0, wald_p < 0.05,
-          all(bs$brent_usd[bs$year %in% lead_hi] > median(lb$brent_usd)),
-          all(bs$brent_usd[bs$year %in% lead_lo] < median(lb$brent_usd)))
-rr_lo <- es22$ci_low - max_step                            # crude relative-magnitude bound
+lp <- lb[lb$year < base_year, ]                               # the six leads only
+r_leads_brent <- cor(lp$coef, lp$brent_usd)                    # 2015-2020
+r_lead_brent  <- cor(lb$coef, lb$brent_usd)                    # incl. the 2021 reference zero
+se_max_lead   <- max(es_pre$se)
+lead_top  <- lp$year[which.max(lp$coef)]
+d_top     <- lp$coef[which.max(lp$coef)]
+brent_ref <- bs$brent_usd[bs$year == base_year]
+brent_top <- bs$brent_usd[bs$year == lead_top]
+d2022_vs_top <- es22$coef - d_top
+stopifnot(r_leads_brent > 0.9, r_lead_brent < r_leads_brent,
+          lead_top == lp$year[which.max(lp$brent_usd)],             # largest lead = highest-price lead year
+          abs(brent_ref - brent_top) < 1,                           # 2021 Brent close to that year's
+          n_pre_pos == n_leads - 1, identical(pre_neg, 2020L),
+          se_max_lead > 0.5 * t2$coef,
+          # 2021: importers rebounded more than exporters (aggregates)
+          syv("Net importers", 2021, "explicit_pct_gdp") - syv("Net importers", 2020, "explicit_pct_gdp") >
+            syv("Net exporters", 2021, "explicit_pct_gdp") - syv("Net exporters", 2020, "explicit_pct_gdp"))
 
 # ---- Robustness (Table 4) ----------------------------------------------------
 ex <- rb$exclusions
 exr <- function(s) ex[ex$sample == s, ]
 loo <- rb$leave_one_out
-loo_ci0 <- sum(loo$p_value >= 0.05)       # 95% CI includes zero
-loo_nsig <- loo$country[loo$p_value >= 0.10]
 nven <- exr("without_venezuela")
-stopifnot(all(loo$coef > 0), nven$p_value > 0.10)
+stopifnot(all(loo$coef > 0), all(loo$p_value > 0.10), nven$p_value > 0.10,
+          all(ex$p_value > 0.10),
+          rb$loo_range$country_at_min == "Venezuela", rb$loo_range$country_at_max == "Brazil",
+          exr("without_suriname")$coef > t2$coef)
 
-# ---- Fiscal matrix (Table 5, Figure 5) ---------------------------------------
+# ---- Classification sensitivity (Table 5) ------------------------------------
+vv  <- cs$variants
+vk  <- function(k) vv[vv$variant == k, ]
+bin <- vv[vv$variant %in% c(1:5, 7, 8), ]                  # binary definitions
+bin_pre <- vv[vv$variant %in% 1:5, ]
+ex_dist <- cs$exposure
+ebc <- ex_dist$by_country
+e_min_c <- ebc$country[which.min(ebc$net_oil_trade_gdp_1519)]
+e_max_c <- ebc$country[which.max(ebc$net_oil_trade_gdp_1519)]
+e_2nd_c <- ebc$country[ebc$iso == ex_dist$second_iso]
+n_e_neg <- sum(ebc$net_oil_trade_gdp_1519 < 0)
+cont_drop <- 1 - vk(9)$coef / vk(6)$coef
+bol_ch <- cl$change_pp[cl$country == "Bolivia"]
+stopifnot(isTRUE(all.equal(vk(1)$coef, t2$coef)), isTRUE(all.equal(vk(1)$p_value, t2$p_value)),
+          all(vv$type[vv$variant %in% 1:6] == "pre-specified"),
+          all(vv$type[vv$variant %in% 7:9] == "post hoc"),
+          all(bin$coef > 0), all(bin$p_value > 0.05),              # sign robust, not significance
+          sum(bin$p_value < 0.10) == 2, all(which(bin$p_value < 0.10) %in% which(bin$variant %in% c(2, 5))),
+          which.max(bin$coef) == which(bin$variant == 2),
+          which.min(bin$coef) == which(bin$variant == 3),
+          vk(5)$p_value < 0.10, vk(5)$coef > t2$coef,
+          vk(6)$p_value < 0.001, vk(9)$p_value < 0.05, vk(9)$coef > 0, vk(9)$coef < vk(6)$coef,
+          identical(cs$switches$v2_gas$to_exporter, "BOL"),
+          identical(cs$switches$v3_1921$to_exporter, "GUY"),
+          identical(cs$excluded$v9, c("PRI", "VEN")),
+          e_max_c == "Venezuela", ex_dist$second_iso == "ECU",
+          ex_dist$max > 4 * ex_dist$second,
+          ex_dist$median < 0,
+          vk(4)$coef > 0 && abs(vk(4)$coef - t2$coef) < 0.1,
+          bol_ch == sort(cl$change_pp, decreasing = TRUE)[2])       # Bolivia: 2nd-largest rise
+
+# ---- Fiscal matrix (Table 6, Figure 5) ---------------------------------------
 fc  <- fa$countries
 fcv <- function(cn, v) fc[[v]][fc$country == cn]
 qc  <- fa$quadrant_countries
@@ -222,20 +311,34 @@ urg_exp <- urg$country[urg$group == "Net exporter"]
 urg_imp <- urg$country[urg$group == "Net importer"]
 urg_def <- urg[urg$fiscal_balance_pct_gdp_2022 < 0, ]
 urg_def <- urg_def[order(urg_def$fiscal_balance_pct_gdp_2022), ]
-# Illustrative differential cost: beta3 (and its 95% CI) x 2022 GDP, all exporters
+# Illustrative differential cost: beta3 (and its 95% CI) x 2022 GDP, exporters in the matrix
 fx <- fc[fc$group == "Net exporter", ]
 fx$cost    <- fx$shock_cost_usd_bn
 fx$cost_lo <- fx$shock_cost_low_usd_bn
 fx$cost_hi <- fx$shock_cost_high_usd_bn
-stopifnot(!anyNA(fx$cost), isTRUE(all.equal(fa$beta3$coef, t2$coef)))
+fx <- fx[order(-fx$cost), ]
+exp_out <- setdiff(exporters, fx$country)                 # exporters below the subsidy floor
+stopifnot(!anyNA(fx$cost), isTRUE(all.equal(fa$beta3$coef, t2$coef)),
+          nrow(fx) == fa$n_exporters, identical(exp_out, "Brazil"),
+          bra22 < fa$subsidy_floor_pct_gdp,
+          fx$country[1] == "Colombia",
+          all(c("Suriname", "Bolivia", "Argentina") %in% urg_imp),
+          all(sapply(qc[["Monitor"]], function(x) x %in% fc$country[fc$group == "Net importer"])))
 fxv <- function(cn, v) fx[[v]][fx$country == cn]
-stopifnot(nrow(fx) == n_exp,
-          fxv("Mexico", "change_usd_bn_2021_2022") < fxv("Mexico", "cost"))
 # Countries close to the quadrant cut-offs
 band_debt <- 5; band_sub <- 0.1
 near_med <- fc$country[abs(fc$debt_pct_gdp_2022 - fa$median_debt_pct_gdp) < band_debt |
                        abs(fc$explicit_subsidy_pct_gdp_2022 - fa$median_subsidy_pct_gdp) < band_sub]
 near_med <- sort(near_med)
+stopifnot(all(fx$cost_lo < 0))                           # lower end of every range negative
+
+# Other qualitative claims in the text
+g22 <- panel[panel$anio == 2022, ]
+stopifnot(g22$pais[g22$exportador_neto][which.max(g22$gdp[g22$exportador_neto])] == "Brazil",
+          g22$pais[!g22$exportador_neto][which.max(g22$gdp[!g22$exportador_neto])] == "Mexico",
+          cl$change_pp[cl$country == "Mexico"] > 0,
+          cl$change_pp[cl$country == "Brazil"] < 0,
+          abs(vk(7)$coef - t2$coef) < 0.1, abs(vk(8)$coef - t2$coef) < 0.35)
 
 # ---- Figures: outputs/figures/* with notes from figure_notes.rds ------------
 fig_notes <- res("figure_notes.rds")
@@ -340,7 +443,7 @@ tab_float <- function(file, caption, label, size = "\\footnotesize",
 ```
 
 \begin{abstract}
-\noindent The rise in oil prices that began with the post-COVID-19 recovery in 2021 and intensified after the Russian invasion of Ukraine in 2022 was a common shock to every country in Latin America and the Caribbean. I use it to estimate whether explicit fossil fuel subsidies responded differently across countries depending on their net oil trade position. With a panel of `r n_c` countries over `r y0`--`r y1` from the IMF Fossil Fuel Subsidies Database and a two-way fixed effects difference-in-differences design, I estimate that the explicit subsidy of the `r nw(n_exp)` net oil exporters rose by `r num(t2$coef)` percentage points (pp) of GDP more than that of net importers in 2022 (clustered SE `r num(t2$se)`, `r fp(t2$p_value)`; 95\% CI `r fci(t2$ci_low, t2$ci_high)`). Because importers faced the same price increase, this is a differential response rather than the total effect of the shock, and with `r nw(n_exp)` treated clusters, the conventional \textit{p}-value is likely optimistic. No differential is detectable in the implicit subsidy (`r pp(t3$coef)`, `r fp(t3$p_value)`), the event-study coefficient fell to `r pp(es23$coef)` in `r es23$year` as the oil price declined, and the estimate remains positive when each exporter is dropped in turn (`r num(rb$loo_range$min)` to `r npp(rb$loo_range$max)`). A joint test rejects the null that the pre-shock differentials are all zero, and those differentials move with the Brent price, so the 2022 estimate is best read as the largest point in a price--response pattern rather than as a clean break. A descriptive subsidy--debt matrix shows that fiscal pressure is not confined to exporters: among the `r fa$n_countries` countries with non-negligible explicit subsidies, `r nw(nrow(urg))`, `r nw(length(urg_imp))` of them net importers, combine above-median subsidies with above-median public debt. I argue for a reform sequence differentiated by fiscal space, with targeted compensation replacing universal price subsidies.
+\noindent The rise in oil prices that began with the post-COVID-19 recovery in 2021 and intensified after the Russian invasion of Ukraine in 2022 was a common shock to every country in Latin America and the Caribbean. I use it to estimate whether explicit fossil fuel subsidies responded differently across countries depending on their net oil trade position, defined by a rule fixed before estimation: a country is a net oil exporter if its 2015--2019 net trade in crude oil and refined products (UN Comtrade) is positive. With a panel of `r n_c` countries over `r y0`--`r y1` from the IMF Fossil Fuel Subsidies Database and a two-way fixed effects difference-in-differences design, I estimate that the explicit subsidy of the `r nw(n_exp)` net oil exporters rose by `r num(t2$coef)` percentage points (pp) of GDP more than that of net importers in 2022 (clustered SE `r num(t2$se)`, `r fp(t2$p_value)`; 95\% CI `r fci(t2$ci_low, t2$ci_high)`). The estimate is not statistically significant, and it depends heavily on Venezuela: without it, the differential falls to `r npp(nven$coef)`. Point estimates are positive under every binary definition of exporters considered (`r num(min(bin$coef))` to `r npp(max(bin$coef))`), so the sign is robust but significance is not. A continuous measure of net oil exposure, pre-specified as a sensitivity check, points to a dose--response pattern (`r num(vk(6)$coef, 3)` pp of GDP per 1 pp of GDP of net oil exports), but it is heavily leveraged by Venezuela. A pre-trend test does not reject parallel trends (`r fp(wald_p)`), although it has little power. The evidence is suggestive, not conclusive. A descriptive subsidy--debt matrix shows that fiscal pressure is not confined to exporters: among the `r fa$n_countries` countries with non-negligible explicit subsidies, `r nw(nrow(urg))`, `r nw(length(urg_imp))` of them net importers, combine above-median subsidies with above-median public debt. I argue for a reform sequence differentiated by fiscal space, with targeted compensation replacing universal price subsidies.
 
 \medskip
 \noindent\textbf{JEL codes:} H23, H62, Q48, C23.\\
@@ -354,15 +457,15 @@ tab_float <- function(file, caption, label, size = "\\footnotesize",
 
 In 2022, the annual average price of Brent crude rose from USD `r num(bt$brent_2021, 1)` to USD `r num(bt$brent_2022, 1)` per barrel, an increase of `r num(bt$brent_pct_change_2021_2022, 0)`%. The increase began with the post-COVID-19 recovery in 2021 and intensified after the Russian invasion of Ukraine in February 2022, an event that was unexpected, global in scope, and unrelated to the subsidy decisions of any government in Latin America and the Caribbean (LAC). Worldwide, fossil fuel subsidies reached USD 7 trillion, or 7.1% of world GDP, in 2022, and explicit subsidies more than doubled relative to 2020 [@black2023imf]. Governments that hold domestic fuel prices below supply cost absorb international price increases in their budgets, so a shock of this size is also a fiscal event.
 
-This paper asks how explicit fossil fuel subsidies in LAC responded to the 2022 shock and what that response implies for fiscal and subsidy policy. The starting point is that the same price increase operates through different channels depending on a country's net oil trade position. For a net oil exporter, a higher Brent price raises oil revenue, which makes it easier to keep the domestic price low: the subsidy expands, and there is rent to finance it. For a net importer, the higher price raises the cost of supply; if the consumer price is frozen, the subsidy also grows, but without additional revenue to back it. Because exporters have the rent to finance a larger price gap, I expect their explicit subsidy to rise more than importers'. Exporter status is also correlated with the degree of domestic price regulation, which, in turn, makes the explicit subsidy respond more to international prices. The design identifies a differential response by exporter status; it cannot separate the oil-rent channel from differences in pricing regimes.
+This paper asks how explicit fossil fuel subsidies in LAC responded to the 2022 shock and what that response implies for fiscal and subsidy policy. The starting point is that the same price increase operates through different channels depending on a country's net oil trade position. For a net oil exporter, a higher Brent price raises oil revenue, which makes it easier to keep the domestic price low: the subsidy expands, and there is rent to finance it. For a net importer, the higher price raises the cost of supply; if the consumer price is frozen, the subsidy also grows, but without additional revenue to back it. Because exporters have the rent to finance a larger price gap, I expect their explicit subsidy to rise more than importers', and more so the larger their net oil exposure (Section 4.1). Exporter status is also correlated with the degree of domestic price regulation, which, in turn, makes the explicit subsidy respond more to international prices. The design identifies a differential response by exporter status; it cannot separate the oil-rent channel from differences in pricing regimes.
 
 That subsidies rose in 2022 is a descriptive fact, not an estimate of the shock's effect. I cannot observe what exporters' subsidies would have been without the shock, because every country in the region faced the same price increase. Instead, I compare how subsidies moved in net exporters with how they moved in net importers, which went through the same years, including the post-COVID-19 rebound and the 2022 inflation, and were exposed to the same price but not to the oil-rent channel. Netting out the change common to both groups yields a difference-in-differences (DiD) design, identified from the interaction between the shock year and exporter status. The resulting estimate is a *differential* effect: it measures how much more exporters' subsidies rose than importers', not the total effect of the shock on exporters.
 
-The data combine the IMF Fossil Fuel Subsidies Database, which distinguishes between explicit and implicit subsidies [@imf2023ffsdata; @black2023imf], the EIA Brent price series [@eia2023brent], and fiscal indicators from the IMF World Economic Outlook [@imf2023weo]. The panel covers `r n_c` LAC countries, `r nw(n_exp)` of them net oil exporters, over `r y0`--`r y1` (`r n_obs` country-years).
+The data combine the IMF Fossil Fuel Subsidies Database, which distinguishes between explicit and implicit subsidies [@imf2023ffsdata; @black2023imf], the EIA Brent price series [@eia2023brent], oil trade flows from UN Comtrade [@uncomtrade], and fiscal indicators from the IMF World Economic Outlook [@imf2023weo]. The panel covers `r n_c` LAC countries, `r nw(n_exp)` of them net oil exporters, over `r y0`--`r y1` (`r n_obs` country-years). Exporter status follows a data-based rule that I fixed before estimating any model; an earlier version of this analysis used a hand-coded list of exporters, which I now report only as a sensitivity check.
 
-There are five main findings. First, the two-way fixed effects (TWFE) estimate implies that the explicit subsidy of net exporters rose by `r npp(t2$coef)` of GDP more than that of net importers in 2022, with a clustered standard error of `r num(t2$se)` (`r fp(t2$p_value)`; 95% CI `r fci(t2$ci_low, t2$ci_high)`). The magnitude is large relative to the unweighted pre-shock mean of exporters (`r num(cell("Net exporter", "pre_2015_2021"))`% of GDP), but the confidence interval includes zero. With only `r nw(n_exp)` treated countries, conventional clustered standard errors are likely too small, so the *p*-value of `r formatC(t2$p_value, format = "f", digits = 2)` is best read as a lower bound; wild cluster bootstrap, randomization inference, and the @conley2011inference procedure are the appropriate checks, and I leave them as extensions. Second, the estimated differential for the implicit subsidy, used as a falsification outcome, is `r pp(t3$coef)` (`r fp(t3$p_value)`), consistent with a price channel, although its confidence interval does not rule out moderate effects. Third, the differential is transitory: the event-study coefficient fell from `r pp(es22$coef)` in 2022 to `r pp(es23$coef)` in 2023, when Brent declined. Fourth, re-estimating the model without each exporter in turn keeps the coefficient positive, between `r num(rb$loo_range$min)` and `r npp(rb$loo_range$max)`. Fifth, a joint Wald test rejects the null that the `r nw(n_leads)` pre-shock coefficients are all zero (`r fp(wald_p)`), and those coefficients move with the Brent price (correlation = `r num(r_lead_brent)`). Exporters' subsidies appear to respond more to oil prices each year, so the 2022 estimate is best read as the largest point in a price--response pattern rather than as a discrete break, and the parallel-trends assumption is only partly supported by the pre-period.
+There are five main findings. First, the two-way fixed effects (TWFE) estimate implies that the explicit subsidy of net exporters rose by `r npp(t2$coef)` of GDP more than that of net importers in 2022, with a clustered standard error of `r num(t2$se)` (`r fp(t2$p_value)`; 95% CI `r fci(t2$ci_low, t2$ci_high)`). The point estimate is about `r pct(b3_share)` of the unweighted pre-shock mean of exporters (`r num(cell("Net exporter", "pre_2015_2021"))`% of GDP), but it is not statistically significant, and with only `r nw(n_exp)` treated countries, conventional clustered standard errors are, if anything, too small. Second, the estimate depends heavily on one country: without Venezuela, it falls to `r npp(nven$coef)` (`r fp(nven$p_value)`), and dropping each exporter in turn gives estimates between `r num(rb$loo_range$min)` and `r npp(rb$loo_range$max)`. Third, the sign is robust to how exporters are defined, but significance is not: across `r nw(nrow(bin))` binary definitions, the point estimate lies between `r num(min(bin$coef))` and `r npp(max(bin$coef))`, and none is significant at the 5% level; the earlier hand-coded list gives `r npp(vk(5)$coef)` (`r fp(vk(5)$p_value)`). Fourth, a continuous measure of net oil exposure points to a dose--response pattern: each additional percentage point of GDP in net oil exports is associated with a `r num(vk(6)$coef, 3)`\ pp larger differential (`r fp(vk(6)$p_value)`). This evidence is complementary and heavily leveraged by Venezuela, whose net oil exports equal `r num(ex_dist$max, 1)`% of GDP; without it, the slope falls to `r num(vk(9)$coef, 3)` (`r fp(vk(9)$p_value)`). Fifth, the timing is consistent with a price channel but does not establish it: the event-study coefficient peaks in 2022 (`r pp(es22$coef)`) and falls to `r pp(es23$coef)` in 2023, when Brent declined; a joint test does not reject that the `r nw(n_leads)` pre-shock coefficients are all zero (`r fp(wald_p)`), but it has little power; and the implicit subsidy, a falsification outcome, shows no differential (`r pp(t3$coef)`, `r fp(t3$p_value)`). Taken together, the results are suggestive of a larger subsidy response among net oil exporters, not conclusive.
 
-The paper provides a transparent estimate, based on country-level data, of how a common oil price shock propagated differently across countries' budgets in a region with very heterogeneous exposure, and it links that estimate to a descriptive map of fiscal space. The policy analysis shows that pressure is not limited to exporters: several net importers combine high subsidies with high debt. Section 2 describes the context and data; Section 3 presents descriptive evidence; Section 4 sets out the empirical strategy; Section 5 reports the results; Section 6 examines the identifying assumptions; Section 7 reports robustness checks and discusses inference; Section 8 discusses budgetary implications and policy; and Section 9 concludes.
+The paper provides a transparent estimate, based on country-level data and a pre-specified treatment rule, of how a common oil price shock propagated differently across countries' budgets in a region with very heterogeneous exposure, and it links that estimate to a descriptive map of fiscal space. The policy analysis shows that pressure is not limited to exporters: several net importers combine high subsidies with high debt. Section 2 describes the context, data, and treatment definition; Section 3 presents descriptive evidence; Section 4 sets out a conceptual framework and the empirical strategy; Section 5 reports the results; Section 6 examines the identifying assumptions; Section 7 reports robustness checks, including the sensitivity to the definition of exporters, and discusses inference; Section 8 discusses budgetary implications and policy; and Section 9 concludes.
 
 # Context and data
 
@@ -380,23 +483,29 @@ Fiscal indicators are sourced from the IMF World Economic Outlook, accessed via 
 
 The fiscal variables do not enter the DiD model. Debt, the fiscal balance, and revenue are themselves affected by the shock and by the subsidy; they are outcomes, not predetermined covariates, and conditioning on them would introduce bias. They are used only in the policy analysis of Section 8.
 
-## Sample and treatment definition
+## Sample
 
 The panel contains all `r n_c` LAC countries covered by the IMF database over `r y0`--`r y1`, giving `r n_obs` country-years. The window starts in 2015, the first year extracted from the database, and includes `r nw(n_pre)` pre-shock years (`r min(pre_years)`--`r max(pre_years)`) to assess parallel trends, the shock year (2022), and a reversal year (2023). Coverage of the explicit subsidy is nearly complete: the only missing values are for `r enum(miss_expl_c)` in `r min(miss_expl$anio)`--`r max(miss_expl$anio)`. Coverage of the implicit subsidy is less complete: it is missing for all years for `r enum(impl_none)`, and for most years for `r enum(impl_part)`, which matters for the falsification regression in Section 5.
 
-Treatment status is defined by the net oil trade position, not by whether a country produces oil. What determines whether a government gains revenue when Brent rises is the net balance of oil trade. Argentina and Brazil produce crude but are net importers of the refined products whose prices are subsidized, so a higher Brent price raises the cost of the subsidy more than it raises government oil revenue; I classify them as net importers. The `r nw(n_exp)` net exporters are `r enum(exporters)`; the remaining `r n_imp` countries are net importers. Table \ref{tab:countries} in Section 3 lists the classification with each country's explicit subsidy by year.
+## Treatment definition
+
+Treatment status is defined by the net oil trade position, not by whether a country produces oil. What determines whether a government gains revenue when Brent rises is the net balance of oil trade. I fixed the classification rule before estimating any model: a country is a net oil exporter if its average net trade in crude oil and refined petroleum products (HS headings 2709 and 2710; exports minus imports in current USD, partner World) over 2015--2019 is positive, and a net oil importer otherwise. The trade data come from UN Comtrade [@uncomtrade]. Venezuela has not reported to Comtrade in any year of the window, so its position is rebuilt from mirror data, that is, from its partners' reported imports from and exports to Venezuela. Three countries reported only some years of the window (Haiti and St. Kitts and Nevis three, Dominica four); their averages use the years they reported, and all three are clearly net importers. The measure is taken before the shock and held fixed over time, so treatment status cannot respond to the 2022 price increase or to the subsidy response itself. The 2015--2019 window also ends before the pandemic and before Guyana's oil exports: production started in December 2019 and exports in 2020. Guyana was a net importer over the window and is classified as such; it appears as an exporter only in the 2019--2021 variant and in the earlier hand-coded list, both reported in Section 7.
+
+The rule yields `r nw(n_exp)` net exporters, `r enum(exporters)`; the remaining `r n_imp` countries are net importers. Argentina illustrates why production is not the criterion: it exports some crude, but imports more refined products than it exports, so a higher Brent price raises the cost of supply more than it raises oil revenue. Two cases need comment. Puerto Rico does not appear in Comtrade, which records its trade under the United States, so the rule cannot be applied to it; I classify it as a net importer based on EIA data, which report that it has no crude oil production and no operating refinery [@eia2026pr]. Trinidad and Tobago is a knife-edge case: its average net oil trade is only USD `r num(tto_avg_m, 0)` million a year, negative in `r enum(tto_neg)` and positive in `r min(tto_pos)`--`r max(tto_pos)`, so a small change in the window could reclassify it. Section 7 reports the estimates without each of these two countries.
+
+The data-based rule differs from the hand-coded list of `r nw(vk(5)$n_treated)` exporters used in an earlier version of this analysis in four countries. Mexico and Bolivia become net importers. Mexico's net crude exports (USD `r num(hs("MEX", 2709), 1)` billion a year) are outweighed by its net imports of refined products (USD `r num(-hs("MEX", 2710), 1)` billion). Bolivia's hydrocarbon exports are mainly natural gas (HS 2711), which the rule does not count, and its refined-product imports exceed its crude exports. Guyana becomes a net importer for the timing reason given above. Brazil becomes a net exporter, because its net crude exports (USD `r num(hs("BRA", 2709), 1)` billion a year) exceed its net imports of refined products (USD `r num(-hs("BRA", 2710), 1)` billion). I report the hand-coded list only as a sensitivity check, although it yields a smaller *p*-value than the main rule; a classification chosen after seeing the results would invalidate the inference. Table \ref{tab:countries} in Section 3 lists the classification with each country's explicit subsidy by year.
 
 The treated group is small, and this shapes the rest of the analysis. With `r nw(n_exp)` exporters, standard errors are large, confidence intervals are wide, and conventional inference is fragile (see Section 7).
 
 # Descriptive evidence
 
-Figure \ref{fig:break} plots the explicit subsidy by group and year, in USD billion (panels a and b) and as a share of GDP (panels c and d). Between 2021 and 2022, the LAC total rose from USD `r num(cgv("LAC total", "usd_2021"), 1)` billion to USD `r num(cgv("LAC total", "usd_2022"), 1)` billion (`r sgn(cgv("LAC total", "change_usd_pct"), 1)`%), or from `r num(cgv("LAC total", "pct_gdp_2021"))`% to `r num(cgv("LAC total", "pct_gdp_2022"))`% of GDP. The aggregate hides the source of the increase. Among net exporters, the subsidy went from `r num(cgv("Net exporter", "pct_gdp_2021"))`% to `r num(cgv("Net exporter", "pct_gdp_2022"))`% of GDP (`r pp(cgv("Net exporter", "change_pp"))`), while among net importers it went from `r num(cgv("Net importer", "pct_gdp_2021"))`% to `r num(cgv("Net importer", "pct_gdp_2022"))`% (`r pp(cgv("Net importer", "change_pp"))`; changes are computed from unrounded values). In dollar terms, exporters account for USD `r num(cgv("Net exporter", "change_usd_bn"), 1)` billion of the USD `r num(cgv("LAC total", "change_usd_bn"), 1)` billion increase. The series also shows the volatility of the pre-shock years, including the 2018 peak and the 2020 collapse, both of which reappear in the event study.
+Figure \ref{fig:break} plots the explicit subsidy by group and year, in USD billion (panels a and b) and as a share of GDP (panels c and d). Between 2021 and 2022, the LAC total rose from USD `r num(cgv("LAC total", "usd_2021"), 1)` billion to USD `r num(cgv("LAC total", "usd_2022"), 1)` billion (`r sgn(cgv("LAC total", "change_usd_pct"), 1)`%), or from `r num(cgv("LAC total", "pct_gdp_2021"))`% to `r num(cgv("LAC total", "pct_gdp_2022"))`% of GDP. In these aggregates, the increase was not concentrated among exporters. Among net exporters, the subsidy went from `r num(cgv("Net exporter", "pct_gdp_2021"))`% to `r num(cgv("Net exporter", "pct_gdp_2022"))`% of GDP (`r pp(cgv("Net exporter", "change_pp"))`), while among net importers it went from `r num(cgv("Net importer", "pct_gdp_2021"))`% to `r num(cgv("Net importer", "pct_gdp_2022"))`% (`r pp(cgv("Net importer", "change_pp"))`; changes are computed from unrounded values). In dollar terms, exporters account for USD `r num(cgv("Net exporter", "change_usd_bn"), 1)` billion of the USD `r num(cgv("LAC total", "change_usd_bn"), 1)` billion increase. The series also shows the volatility of the pre-shock years, including the 2018 peak and the 2020 collapse, both of which reappear in the event study.
 
 ```{r break, results="asis"}
 fig_float("fig1_break.png", "Explicit fossil fuel subsidies by exposure group, 2015--2023", "break", max_height = "0.64\\textheight")
 ```
 
-Table \ref{tab:descriptive} reports the underlying numbers for the explicit, implicit, and total subsidy. The aggregates in Figure \ref{fig:break} and Table \ref{tab:descriptive} are group totals divided by group GDP, so large economies weigh more; the regressions in Section 5 weight every country equally. The two approaches, therefore, yield different levels, although the pattern is the same. The implicit subsidy also rose in 2022 for both groups: from `r num(syv("Net exporters", 2021, "implicit_pct_gdp"))`% to `r num(syv("Net exporters", 2022, "implicit_pct_gdp"))`% of GDP among exporters and from `r num(syv("Net importers", 2021, "implicit_pct_gdp"))`% to `r num(syv("Net importers", 2022, "implicit_pct_gdp"))`% of GDP among importers. That increase is consistent with the price-sensitive tax component of the implicit measure and helps explain why the falsification outcome must be read with caution; the regression in Section 5 asks whether the implicit subsidy rose differentially among exporters once country and year effects are removed.
+Table \ref{tab:descriptive} reports the underlying numbers for the explicit, implicit, and total subsidy. The aggregates in Figure \ref{fig:break} and Table \ref{tab:descriptive} are group totals divided by group GDP, so large economies weigh more: Brazil, the largest exporter economy, has an explicit subsidy close to zero, and Mexico, the largest importer economy, saw its subsidy rise in 2022. The regressions in Section 5 weight every country equally, so a small economy with a large subsidy, such as Venezuela, counts as much as Brazil. The two approaches, therefore, give different pictures, and the differential estimated in Section 5 comes from the equal-weighted comparison. The implicit subsidy also rose in 2022 for both groups: from `r num(syv("Net exporters", 2021, "implicit_pct_gdp"))`% to `r num(syv("Net exporters", 2022, "implicit_pct_gdp"))`% of GDP among exporters and from `r num(syv("Net importers", 2021, "implicit_pct_gdp"))`% to `r num(syv("Net importers", 2022, "implicit_pct_gdp"))`% of GDP among importers. That increase is consistent with the price-sensitive tax component of the implicit measure and helps explain why the falsification outcome must be read with caution; the regression in Section 5 asks whether the implicit subsidy rose differentially among exporters once country and year effects are removed.
 
 ```{r tab-descriptive, results="asis"}
 tab_float("tab1_descriptive.xlsx",
@@ -404,7 +513,7 @@ tab_float("tab1_descriptive.xlsx",
           "descriptive")
 ```
 
-Table \ref{tab:countries} reports the explicit subsidy of each country by year, grouped by exposure, together with its change in 2022 relative to the 2015--2021 average. The levels are highly heterogeneous within both groups, ranging from Venezuela, whose subsidy ranged from `r num(min(ven_y), 1)`% to `r num(max(ven_y), 1)`% of GDP over `r y0`--`r y1`, to the `r nw(n_zero22)` countries whose 2022 subsidy was at most `r num(im$floor_pct_gdp)`% of GDP.
+Table \ref{tab:countries} reports the explicit subsidy of each country by year, grouped by exposure, together with its change in 2022 relative to the 2015--2021 average. The levels are highly heterogeneous within both groups, ranging from Venezuela, whose subsidy ranged from `r num(min(ven_y), 1)`% to `r num(max(ven_y), 1)`% of GDP over `r y0`--`r y1`, to the `r nw(n_zero22)` countries, including Brazil, whose 2022 subsidy was at most `r num(im$floor_pct_gdp)`% of GDP.
 
 ```{r tab-countries, results="asis"}
 tab_float("tab2_countries.xlsx",
@@ -418,7 +527,7 @@ Figure \ref{fig:brent} connects the shock and the outcome. When the internationa
 fig_float("fig2_brent.png", "Brent price and aggregate explicit subsidy in LAC, 2015--2023", "brent", max_height = "0.52\\textheight")
 ```
 
-Figure \ref{fig:impact} shows the change in the explicit subsidy by country, comparing 2022 with the 2015--2019 average, for the `r im$n_countries` countries whose subsidy exceeds `r num(im$floor_pct_gdp)`% of GDP in at least one year. Three pre-shock baselines appear in the paper, and each serves a different purpose. Figure \ref{fig:impact} uses 2015--2019 to exclude the pandemic years from the country-level comparison; Table \ref{tab:countries} and the DiD model use the full 2015--2021 pre-period; and Table \ref{tab:fiscal} reports the observed 2021--2022 change. `r if (same_top3) "The same three countries have the largest increases under the 2015--2019 and 2015--2021 baselines." else ""` The subsidy rose in `r im$n_increased` of the `r im$n_countries` countries`r if (length(tiny_up) > 0) paste0(" (in ", enum(tiny_up), " by less than 0.01\u00a0pp)") else ""`. The three largest increases are in `r enum(paste0(top3$country, " (", pp(top3$change_pp), ")"))`. The largest single increase is in `r top3$country[1]`, a net `r tolower(sub("Net ", "", top3$group[1]))`, which already signals that fiscal pressure is not exclusive to exporters. Argentina, also a net importer, ranks `r ord(arg_rank)` (`r pp(imv("Argentina"))`), above `r nw(exp_below_arg)` of the `r nw(n_exp)` exporters. At the other end, `r enum(neg_exp)`, a net exporter, reduced its subsidy (`r pp(imv(neg_exp[1]))`). The DiD estimate is an average differential between groups, not a description of each country's response, and this heterogeneity motivates two later choices: equal country weights in the model, and a country-by-country policy analysis in Section 8.
+Figure \ref{fig:impact} shows the change in the explicit subsidy by country, comparing 2022 with the 2015--2019 average, for the `r im$n_countries` countries whose subsidy exceeds `r num(im$floor_pct_gdp)`% of GDP in at least one year. Three pre-shock baselines appear in the paper, and each serves a different purpose. Figure \ref{fig:impact} uses 2015--2019 to exclude the pandemic years from the country-level comparison; Table \ref{tab:countries} and the DiD model use the full 2015--2021 pre-period; and Table \ref{tab:fiscal} reports the observed 2021--2022 change. `r if (same_top3) "The same three countries have the largest increases under the 2015--2019 and 2015--2021 baselines." else ""` The subsidy rose in `r im$n_increased` of the `r im$n_countries` countries`r if (length(tiny_up) > 0) paste0(" (in ", enum(tiny_up), " by less than 0.01 pp)") else ""`. The three largest increases are in `r enum(paste0(top3$country, " (", pp(top3$change_pp), ")"))`. `r Nw(length(top3_imp))` of the three, `r enum(top3_imp)`, are net importers, which already signals that fiscal pressure is not exclusive to exporters. Argentina, also a net importer, ranks `r ord(arg_rank)` (`r pp(imv("Argentina"))`), above `r nw(exp_below_arg)` of the `r nw(n_exp)` exporters. At the other end, `r enum(neg_exp)`, a net exporter whose explicit subsidy was close to zero throughout, recorded a marginal decrease (`r pp(imv(neg_exp[1]))`). The DiD estimate is an average differential between groups, not a description of each country's response, and this heterogeneity motivates two later choices: equal country weights in the model, and a country-by-country policy analysis in Section 8.
 
 ```{r impact, results="asis"}
 fig_float("fig3_impact.png", "Change in the explicit subsidy by country, 2022 versus the 2015--2019 average", "impact", max_height = "0.84\\textheight")
@@ -426,9 +535,25 @@ fig_float("fig3_impact.png", "Change in the explicit subsidy by country, 2022 ve
 
 # Empirical strategy
 
+## Conceptual framework
+
+A simple accounting identity organizes the predictions. The explicit subsidy of country $i$ is the gap between the supply cost and the regulated consumer price, times the quantity consumed:
+$$
+ES_i = \left[c(P) - \bar p_i\right] Q_i,
+$$
+where $c(P)$ is the supply cost, increasing in the Brent price $P$, $\bar p_i$ is the regulated domestic price, and $Q_i$ is consumption. If $\bar p_i$ is sticky, an increase $dP$ raises $c(P)$ in every country, and the explicit subsidy rises everywhere, in importers as well as exporters. This common response is what the year effects of Section 4.3 absorb.
+
+Exporters differ in one respect: they also receive oil rents $R_i(P)$, which rise with the price in proportion to net oil exports $N_i$. The windfall relaxes the government's budget constraint and makes it cheaper to hold $\bar p_i$ fixed rather than pass the price increase through to consumers. If $\pi_i$ denotes the share of the cost increase passed through, the change in the subsidy is approximately
+$$
+dES_i \approx (1 - \pi_i)\, c'(P)\, Q_i\, dP, \qquad \pi_i = \pi(N_i), \quad \pi'(N_i) < 0 .
+$$
+The prediction is a larger increase in the explicit subsidy among exporters ($N_i > 0$) than among importers, and a larger increase the larger the net oil exposure. The first part motivates the binary design used for the main estimate; the second motivates the continuous-exposure variant reported in Section 7.
+
+This is a heuristic, not a structural model. It ignores, among other things, the political economy of price adjustment and differences in $Q_i$ and in the fuel mix. The most important omission is that pass-through also depends on the price-regulation regime, which differs across countries and is correlated with exporter status: a country with an administered price and a state-owned oil company may keep $\bar p_i$ fixed for reasons unrelated to its oil rents. The common response also varies with fuel intensity, $Q_i$ relative to GDP, so the year effects absorb only its average; if exporters or high-subsidy countries are more fuel-intensive, part of the differential reflects intensity rather than rents. The design cannot separate the rent channel from such differences in regimes and intensity, and the estimates below are a differential response by exporter status, not a test of the rent mechanism.
+
 ## Why difference-in-differences
 
-The selection of method follows from the question and from the structure of the data. A before-and-after comparison of exporters does not isolate the shock, because other global elements also changed between 2021 and 2022, including the post-COVID-19 rebound and general inflation, and such a comparison would attribute all of them to the oil price. A comparison of exporters and importers in 2022 alone does not isolate it either, because the groups already differed before the shock: exporters subsidized more in every pre-shock year. The data, however, have two dimensions, time and group. Net importers went through the same period and faced the same price increase, but without the oil-rent channel. Comparing the change in exporters with the change in importers is a difference-in-differences comparison [@angrist2009mostly]. Because importers are also exposed, the comparison does not recover what exporters' subsidies would have been without the shock; it recovers how much more they rose than those of a lower-exposure group with identical timing.
+The selection of method follows from the question and from the structure of the data. A before-and-after comparison of exporters does not isolate the shock, because other global elements also changed between 2021 and 2022, including the post-COVID-19 rebound and general inflation, and such a comparison would attribute all of them to the oil price. A comparison of exporters and importers in 2022 alone does not isolate it either, because the groups already differed before the shock: over 2015--2021, the average exporter's explicit subsidy was `r num(cell("Net exporter", "pre_2015_2021"))`% of GDP, compared with `r num(cell("Net importer", "pre_2015_2021"))`% for the average importer. The data, however, have two dimensions, time and group. Net importers went through the same period and faced the same price increase, but without the oil-rent channel. Comparing the change in exporters with the change in importers is a difference-in-differences comparison [@angrist2009mostly]. Because importers are also exposed, the comparison does not recover what exporters' subsidies would have been without the shock; it recovers how much more they rose than those of a lower-exposure group with identical timing.
 
 ## Specification
 
@@ -460,7 +585,7 @@ The DiD estimate can be read directly from four group means (unweighted country-
 
 ## Two-way fixed effects estimates
 
-Table \ref{tab:model} reports the regression estimates. Column (1) reproduces the $2\times 2$ comparison as a regression: $\hat\beta_3 = `r num(t1$coef)`$ (SE `r num(t1$se)`, `r fp(t1$p_value)`). Column (2), the main specification with country and year fixed effects, gives `r npp(t2$coef)` of GDP (SE `r num(t2$se)`, `r fp(t2$p_value)`, 95% CI `r fci(t2$ci_low, t2$ci_high)`). The two estimates coincide, as they must in a design with a single treatment date and a nearly balanced panel; column (1) shows where the TWFE coefficient comes from, and their agreement is not evidence of robustness. The magnitude is economically large: it exceeds half of the average pre-shock subsidy for exporters. The estimate is significant at the 10% level but not at the 5% level, and the 95% confidence interval includes zero. With `r nw(t2$n_treated)` treated countries, and with the few-cluster problem discussed in Section 4, this *p*-value is more likely to be too small than too large. I report it as such rather than searching for a specification that yields a smaller \textit{p}-value.
+Table \ref{tab:model} reports the regression estimates. Column (1) reproduces the $2\times 2$ comparison as a regression: $\hat\beta_3 = `r num(t1$coef)`$ (SE `r num(t1$se)`, `r fp(t1$p_value)`). Column (2), the main specification with country and year fixed effects, gives `r npp(t2$coef)` of GDP (SE `r num(t2$se)`, `r fp(t2$p_value)`, 95% CI `r fci(t2$ci_low, t2$ci_high)`). The two estimates nearly coincide, as they must in a design with a single treatment date and a nearly balanced panel; column (1) shows where the TWFE coefficient comes from, and their agreement is not evidence of robustness. The point estimate is economically meaningful, about `r pct(b3_share)` of the average pre-shock subsidy of exporters, but it is not statistically significant at conventional levels, and its 95% confidence interval includes both zero and differentials more than twice as large as the point estimate. With `r nw(t2$n_treated)` treated countries, and with the few-cluster problem discussed in Section 4, this *p*-value is more likely to be too small than too large. This is the main, pre-specified result, and I report it as such rather than searching for a classification or specification that yields a smaller \textit{p}-value; Section 7 reports the alternatives.
 
 ```{r tab-model, results="asis"}
 tab_float("tab3_model.xlsx",
@@ -470,7 +595,7 @@ tab_float("tab3_model.xlsx",
 
 ## Auxiliary outcomes: implicit and total subsidy
 
-If the estimated differential reflects the price channel, it should appear in the explicit subsidy, which is a price gap, more than in the implicit subsidy, which is dominated by structural components. Column (3) estimates the same TWFE model with the implicit subsidy as the dependent variable. The coefficient is `r pp(t3$coef)` of GDP (SE `r num(t3$se)`, `r fp(t3$p_value)`, 95% CI `r fci(t3$ci_low, t3$ci_high)`): negative and far from significant. The implicit subsidy is not independent of the explicit one, however: it is measured relative to the higher of the retail price and the supply cost and includes forgone VAT, so a price shock can move it mechanically in either direction. The null result is therefore consistent with, but does not isolate, a price channel, and its confidence interval admits differential effects of up to `r npp(t3$ci_high)`. The sample also differs: the falsification regression has `r t3$n_countries` countries and `r t3$n_obs` observations because the implicit subsidy is missing for `r enum(impl_none)` and partly for `r enum(impl_part)`, so columns (2) and (3) are not estimated on the same countries. Column (4) uses the total subsidy: `r npp(t4$coef)` (SE `r num(t4$se)`, `r fp(t4$p_value)`). It is close in magnitude to the explicit differential but less precise, as expected when a noisy component is added to the outcome; because the samples differ and the IMF total is computed separately from its components, columns (2)--(4) need not add up.
+If the estimated differential reflects the price channel, it should appear in the explicit subsidy, which is a price gap, more than in the implicit subsidy, which is dominated by structural components. Column (3) estimates the same TWFE model with the implicit subsidy as the dependent variable. The coefficient is `r pp(t3$coef)` of GDP (SE `r num(t3$se)`, `r fp(t3$p_value)`, 95% CI `r fci(t3$ci_low, t3$ci_high)`): negative and far from significant. The implicit subsidy is not independent of the explicit one, however: it is measured relative to the higher of the retail price and the supply cost and includes forgone VAT, so a price shock can move it mechanically in either direction. The null result is therefore consistent with, but does not isolate, a price channel, and its confidence interval admits differential effects of up to `r npp(t3$ci_high)`. Because the explicit differential is itself not significant, the contrast between the two outcomes is weaker evidence than it would otherwise be. The sample also differs: the falsification regression has `r t3$n_countries` countries and `r t3$n_obs` observations because the implicit subsidy is missing for `r enum(impl_none)` and partly for `r enum(impl_part)`, so columns (2) and (3) are not estimated on the same countries. Column (4) uses the total subsidy: `r npp(t4$coef)` (SE `r num(t4$se)`, `r fp(t4$p_value)`). It is close in magnitude to the explicit differential and, like it, not statistically significant; because the samples differ and the IMF total is computed separately from its components, columns (2)--(4) need not add up.
 
 # Identification checks
 
@@ -486,21 +611,27 @@ where $\bar S^0_{i,\text{pre}}$ is the 2015--2021 average, and $S^0$ is the subs
 fig_float("fig4_eventstudy.png", "Event study: differential response of the explicit subsidy by year (base year 2021)", "eventstudy", max_height = "0.52\\textheight")
 ```
 
-The `r nw(n_leads)` pre-shock coefficients are `r enum(paste0(sgn(es_pre$coef), " (", es_pre$year, ")"))`. Each of their 95% confidence intervals includes zero. The largest coefficient appears in 2022 ($\hat\delta_{2022} = `r sgn(es22$coef)`$, 95% CI `r fci(es22$ci_low, es22$ci_high)`) and declines in 2023 ($\hat\delta_{2023} = `r sgn(es23$coef)`$, 95% CI `r fci(es23$ci_low, es23$ci_high)`), in line with the fall in oil prices.
+The `r nw(n_leads)` pre-shock coefficients are `r enum(paste0(sgn(es_pre$coef), " (", es_pre$year, ")"))`. `r Nw(sum(pre_cover0))` of their 95% confidence intervals include zero; the exception is `r pre_excl0$year`, whose lower bound is barely above zero (`r num(pre_excl0$ci_low)`). The largest coefficient appears in 2022 ($\hat\delta_{2022} = `r sgn(es22$coef)`$, 95% CI `r fci(es22$ci_low, es22$ci_high)`), and it declines in 2023 ($\hat\delta_{2023} = `r sgn(es23$coef)`$, 95% CI `r fci(es23$ci_low, es23$ci_high)`), in line with the fall in oil prices. Neither interval excludes zero.
 
-A joint Wald test rejects the null that the `r nw(n_leads)` leads are all zero: $F(`r wald$df1`, `r wald_df2`) = `r num(wald$f_stat)`$, `r fp(wald_p)`, with the denominator degrees of freedom set to the number of clusters minus one. The rejection should be taken seriously, and it cannot be regarded as mere volatility. With a single post-period, $\beta_3$ cannot separate the response to the shock from any other exporter-specific shock in 2022: a group-specific deviation of the size seen before 2022 would enter the point estimate directly rather than only widening its confidence interval, and clustered standard errors do not account for it [@conley2011inference].
+A joint Wald test does not reject the null that the `r nw(n_leads)` leads are all zero: $F(`r wald$df1`, `r wald_df2`) = `r num(wald$f_stat)`$, `r fp(wald_p)`, with the denominator degrees of freedom set to the number of clusters minus one. This is weak support for parallel trends, not a validation. With `r nw(n_exp)` treated clusters and lead standard errors of up to `r npp(se_max_lead)`, the test has little power against pre-trends of the size of the estimated effect, and conditioning the analysis on passing such a pre-test can itself distort estimates and inference [@roth2022pretest]. With a single post-period, $\beta_3$ also cannot separate the response to the shock from any other exporter-specific shock in 2022: a group-specific deviation of the size seen before 2022 would enter the point estimate directly rather than only widening its confidence interval [@conley2011inference].
 
-The pre-shock differentials are also not random. Together with the base-year zero, the leads show a correlation of `r num(r_lead_brent)` with the annual Brent price: they are positive in `r enum(lead_hi)`, when Brent was high, and negative in `r enum(lead_lo)`, when it was low. A line fitted through these `r nrow(lb)` points predicts a differential of about `r npp(lb_pred22)` at the 2022 Brent price, close to the estimate of `r npp(es22$coef)`. The last pre-period step points in the same direction: relative to the base year, $\hat\delta_{2020} = `r sgn(d2020)`$, so the differential rose by `r npp(step21)` between 2020 and 2021, the year Brent rebounded by `r num(b_2021_pct, 0)`%. This descriptive pattern, based on only `r nrow(lb)` points, suggests that exporters' subsidies respond more to the oil price every year, and that 2022 is the largest instance of that response, a dose--response pattern, rather than a discrete break. It supports a price channel, but it also means that the pre-period is not an untreated baseline and that the 2022 coefficient may partly reflect an ongoing differential price response. I therefore read $\beta_3$ as the differential response to an unusually large price increase, subject to a parallel-trends assumption that the pre-period does not fully support.
+The pattern of the leads matters for interpretation. `r Nw(n_pre_pos)` of the `r nw(n_leads)` are positive; only `r enum(pre_neg)` is negative. Relative to 2021, the exporter--importer gap was therefore larger in most earlier years, and the reference year is a comparatively low point for exporters. In the aggregates of Table \ref{tab:descriptive}, importers' subsidies rebounded more than exporters' between 2020 and 2021. This is why $\hat\delta_{2022}$, measured against 2021, is larger than the static $\hat\beta_3$ (`r npp(t2$coef)`), which is measured against the 2015--2021 average. The leads also co-move with the Brent price: over `r min(lp$year)`--`r max(lp$year)`, their correlation with the annual Brent average is `r num(r_leads_brent)`, and the largest lead, `r sgn(d_top)` in `r lead_top`, falls in the pre-shock year with the highest price among the lead years. The reference year does not fit this pattern: Brent in 2021 (USD `r num(brent_ref, 1)`) was close to its `r lead_top` level (USD `r num(brent_top, 1)`), yet the gap was, by construction, zero, and including the 2021 point lowers the correlation to `r num(r_lead_brent)`. Measured against `r lead_top` rather than 2021, the 2022 differential would be `r pp(d2022_vs_top)`. The leads are thus consistent with exporters' subsidies responding somewhat more to the oil price every year, in which case the pre-period is not an untreated baseline, but seven points with one discordant year cannot establish such a pattern. I read $\beta_3$ as the differential response to an unusually large price increase, estimated with considerable uncertainty and sensitive to the choice of the pre-shock benchmark.
 
-A formal sensitivity analysis that bounds post-period violations of parallel trends by the size of pre-period violations [@rambachan2023more] is a natural extension. The interval for $\delta_{2022}$ already includes zero. A crude version of such a bound, which shifts each end of the interval by the largest pre-period change (`r npp(max_step)`, in `r max_step_y`), moves the lower end to about `r npp(rr_lo, 1)`; a formal analysis would likely widen the interval to include zero by a clear margin.
+A formal sensitivity analysis that bounds post-period violations of parallel trends by the size of pre-period violations [@rambachan2023more] is a natural extension. Because the 95% interval for $\delta_{2022}$ already includes zero, such an analysis could only widen it.
 
 ## No anticipation
 
-The second premise is that exporters' subsidies in 2021 did not respond to a shock that had not yet occurred. With a sole shock year, this assumption cannot be tested with the data, and I do not claim to have validated it. The argument is institutional: the invasion of Ukraine in February 2022 was unanticipated, and there is no indication that any government in the region repositioned its fuel subsidies in 2021 in expectation of a price increase in 2022. The more relevant concern is that prices were already rising in 2021, so the base year is partly exposed. To the extent that the 2021 differential response has the same sign as the 2022 one, this biases the 2022 coefficient toward zero rather than away from it.
+The second premise is that exporters' subsidies in 2021 did not respond to a shock that had not yet occurred. With a sole shock year, this assumption cannot be tested with the data, and I do not claim to have validated it. The argument is institutional: the invasion of Ukraine in February 2022 was unanticipated, and there is no indication that any government in the region repositioned its fuel subsidies in 2021 in expectation of a price increase in 2022. The leads show no sign of an anticipatory rise among exporters: in 2021 the exporter--importer gap was smaller than in `r nw(n_pre_pos)` of the `r nw(n_leads)` earlier years. The more relevant concern is that prices were already rising in 2021, so the base year is partly exposed. To the extent that the 2021 differential response has the same sign as the 2022 one, this biases the 2022 coefficient toward zero rather than away from it.
+
+## No spillovers
+
+The design also assumes that one country's treatment status does not affect subsidies in another, the stable unit treatment value assumption. Regional energy trade could violate it. Venezuela and Trinidad and Tobago supply crude oil and refined products to Caribbean neighbours, and Colombia and Ecuador trade fuels with their neighbours, so the terms on which exporters supply the region can shift the supply cost, and hence the explicit subsidy, of importers. Flows can also run the other way: Bolivia, a net oil importer under the main rule, sells natural gas to Argentina and to Brazil, a treated country, so a comparison country's windfall can affect a treated one, which could bias $\beta_3$ in either direction. Spillovers that affect all countries equally are absorbed by the year effects; only those that fall differently on the two groups bias $\beta_3$. If exporters shared part of their 2022 windfall with importing neighbours through cheaper supply, importers' subsidies would rise less than they otherwise would, and $\beta_3$ would overstate the differential. If exporters instead cut supply to neighbours when prices rose, importers' costs would rise more, and $\beta_3$ would understate it. The direction of the bias is therefore ambiguous, and with country-level annual data, the assumption cannot be tested here.
 
 # Robustness \& inference
 
-Two countries are extreme in the distribution of the outcome. Venezuela's explicit subsidy reached `r num(rb$max_subsidy_pct_gdp$venezuela, 1)`% of GDP in 2022, the highest among exporters, and Suriname's reached `r num(rb$max_subsidy_pct_gdp$suriname, 1)`%, the highest among importers. Dropping Venezuela from the main specification would amount to selecting on the outcome, so I keep it and instead report the main TWFE specification on alternative samples in Table \ref{tab:robustness}. Without Venezuela, the estimate falls to `r num(nven$coef)` (SE `r num(nven$se)`, `r fp(nven$p_value)`, 95% CI `r fci(nven$ci_low, nven$ci_high)`) and is no longer distinguishable from zero; Venezuela contributes substantially to both the size and the precision of the differential. Its values should also be read with caution given the uncertainty around its GDP after hyperinflation. Excluding Suriname raises the estimate to `r num(exr("without_suriname")$coef)` (SE `r num(exr("without_suriname")$se)`, `r fp(exr("without_suriname")$p_value)`), because it removes a large-subsidy importer from the comparison group. Excluding both yields `r num(exr("without_both")$coef)` (SE `r num(exr("without_both")$se)`, `r fp(exr("without_both")$p_value)`).
+## Extreme cases and leave-one-out
+
+Two countries are extreme in the distribution of the outcome. Venezuela's explicit subsidy reached `r num(rb$max_subsidy_pct_gdp$venezuela, 1)`% of GDP in 2022, the highest among exporters, and Suriname's reached `r num(rb$max_subsidy_pct_gdp$suriname, 1)`%, the highest among importers. Dropping Venezuela from the main specification would amount to selecting on the outcome, so I keep it and instead report the main TWFE specification on alternative samples in Table \ref{tab:robustness}. Without Venezuela, the estimate falls from `r num(t2$coef)` to `r num(nven$coef)` (SE `r num(nven$se)`, `r fp(nven$p_value)`, 95% CI `r fci(nven$ci_low, nven$ci_high)`). This is the most consequential sensitivity in the paper: most of the point estimate comes from one country, which is also the country whose GDP, the denominator of the outcome, is most uncertain after hyperinflation. Excluding Suriname raises the estimate to `r num(exr("without_suriname")$coef)` (SE `r num(exr("without_suriname")$se)`, `r fp(exr("without_suriname")$p_value)`), because it removes a large-subsidy importer from the comparison group. Excluding both yields `r num(exr("without_both")$coef)` (SE `r num(exr("without_both")$se)`, `r fp(exr("without_both")$p_value)`).
 
 ```{r tab-robustness, results="asis"}
 tab_float("tab4_robustness.xlsx",
@@ -508,15 +639,31 @@ tab_float("tab4_robustness.xlsx",
           "robustness")
 ```
 
-A systematic version of the same exercise drops each of the `r nw(rb$n_exporters)` exporters in turn. The coefficient remains positive in every case, ranging from `r num(rb$loo_range$min)` (without `r rb$loo_range$country_at_min`) to `r num(rb$loo_range$max)` (without `r rb$loo_range$country_at_max`), but its 95% confidence interval includes zero in `r nw(loo_ci0)` of the `r nw(nrow(loo))` cases, and the *p*-value exceeds 0.10 when `r if (length(loo_nsig) > 1) paste('either', paste(loo_nsig, collapse = ' or ')) else loo_nsig` is dropped. These re-estimates have only `r nw(n_exp - 1)` treated clusters and inherit the inference problem discussed below. The sign of the differential does not hinge on a single country; its size and precision do. The exercise drops only treated units; dropping comparison countries one at a time would show whether the composition of the comparison group matters, and is a further extension.
+A systematic version of the same exercise drops each of the `r nw(rb$n_exporters)` exporters in turn. The coefficient remains positive in every case, ranging from `r num(rb$loo_range$min)` (without `r rb$loo_range$country_at_min`) to `r num(rb$loo_range$max)` (without `r rb$loo_range$country_at_max`), and none of the `r nw(nrow(loo))` estimates is significant at the 10% level. Dropping Brazil raises the estimate because its explicit subsidy is close to zero throughout and fell marginally in 2022. These re-estimates have only `r nw(n_exp - 1)` treated clusters and inherit the inference problem discussed below. The sign of the differential does not hinge on a single country; its size does, and it hinges on Venezuela. The exercise drops only treated units; dropping comparison countries one at a time would show whether the composition of the comparison group matters, and is a further extension.
 
-The small treated group is the main limitation of the design, and it affects inference in two ways. First, with `r nw(n_exp)` treated clusters, conventional cluster-robust standard errors understate variability because the variance of $\hat\beta_3$ is driven by the few treated clusters [@cameron2008bootstrap; @mackinnon2017wild], so the significance levels in Tables \ref{tab:model} and \ref{tab:robustness} are likely optimistic. Second, idiosyncratic shocks to seven countries do not average out: the estimator does not concentrate around the true differential as the number of comparison countries grows [@conley2011inference], so any single estimate can be far from the true value even if it is correct on average. The wild cluster restricted bootstrap, randomization inference over exporter status, and the @conley2011inference procedure address these problems and are the natural next step; I have not run them, and I expect them to widen the confidence interval. The recent econometric literature on DiD also discusses the interpretation of pre-trend tests and the problems of TWFE in the context of staggered adoption [@roth2023trending]. The last concern does not arise here, because treatment starts in the same year for every treated country, so the TWFE estimator reduces to a comparison between one high-exposure cohort and a lower-exposure comparison group with identical timing.
+## Sensitivity to the definition of exporters
+
+Table \ref{tab:classification} re-estimates the main specification under alternative definitions of exporters. Panel A reports the variants that were specified together with the main rule, before estimation; Panel B reports three variants that I added after inspecting the classification and the continuous-exposure result, and they should be read as post hoc. Row (1) reproduces the main estimate.
+
+```{r tab-classification, results="asis"}
+tab_float("tab5_classification.xlsx",
+          "Sensitivity of $\\beta_3$ to the definition of net oil exporters",
+          "classification", colsep = "4pt")
+```
+
+Every binary definition gives a positive point estimate, between `r num(min(bin$coef))` and `r num(max(bin$coef))`, and none is significant at the 5% level. Adding petroleum gases (row 2) moves `r iso2c(cs$switches$v2_gas$to_exporter)` to the exporter group and gives the largest binary estimate, `r num(vk(2)$coef)` (`r fp(vk(2)$p_value)`, with a 95% CI whose lower end is essentially zero). Bolivia's classification matters because its subsidy rose by `r npp(bol_ch)` in 2022 relative to its 2015--2021 average, the second-largest increase in the sample; as a gas exporter, it also received a windfall that the main rule does not count. Averaging over 2019--2021 (row 3) moves `r iso2c(cs$switches$v3_1921$to_exporter)` to the exporter group and gives `r num(vk(3)$coef)` (`r fp(vk(3)$p_value)`); dropping Guyana (row 4) leaves the main estimate almost unchanged (`r num(vk(4)$coef)`). The hand-coded list used in the earlier version of this analysis (row 5) gives `r num(vk(5)$coef)` (`r fp(vk(5)$p_value)`). I report it only as a sensitivity check: the rule in row (1) was fixed before estimation, and choosing among classifications after seeing their *p*-values would invalidate the inference. Dropping Puerto Rico (row 7) or Trinidad and Tobago (row 8), the two cases that rest on an outside source or a near-zero average, leaves the estimate positive and not significant (`r num(vk(7)$coef)` and `r num(vk(8)$coef)`). The sign of the differential is robust to how exporters are defined; its statistical significance is not.
+
+Row (6) replaces the binary indicator with net oil trade as a percentage of GDP (2015--2019 average), interacted with $\text{Post}_t$. Each additional percentage point of GDP in net oil exports is associated with a `r num(vk(6)$coef, 3)`\ pp larger increase in the explicit subsidy in 2022 (SE `r num(vk(6)$se, 3)`, `r fp(vk(6)$p_value)`). This is the dose--response pattern predicted in Section 4.1: the larger the net oil exposure, the larger the differential response. I treat it as complementary evidence, not as the main result, for three reasons. First, the exposure distribution is highly skewed. Net oil trade ranges from `r num(ex_dist$min, 1)`% of GDP (`r e_min_c`) to `r num(ex_dist$max, 1)`% (`r e_max_c`), with a median of `r num(ex_dist$median, 1)`%, and `r n_e_neg` of the `r nrow(ebc)` countries have negative values; Venezuela's exposure is more than four times that of the next country, `r e_2nd_c` (`r num(ex_dist$second, 1)`%). The slope is therefore heavily leveraged by one country: without Venezuela (row 9, post hoc), it falls to `r num(vk(9)$coef, 3)` (SE `r num(vk(9)$se, 3)`, `r fp(vk(9)$p_value)`), `r pct(cont_drop)` lower. Second, with `r vk(6)$n_countries` clusters and one high-leverage cluster, clustered standard errors are likely too small [@mackinnon2017wild], so the *p*-value overstates the precision. Third, the continuous variant was pre-specified as a sensitivity check, not as the main specification, and promoting it after seeing that it is significant would be the kind of specification search the pre-specified rule is meant to prevent. I read it as suggestive evidence of a dose--response pattern that survives, in attenuated form, the exclusion of Venezuela.
+
+## Inference with few treated clusters
+
+The small treated group is the main limitation of the design, and it affects inference in two ways. First, with `r nw(n_exp)` treated clusters, conventional cluster-robust standard errors understate variability because the variance of $\hat\beta_3$ is driven by the few treated clusters [@cameron2008bootstrap; @mackinnon2017wild], so the *p*-values in Tables \ref{tab:model}, \ref{tab:robustness}, and \ref{tab:classification} are likely optimistic. This reinforces, rather than overturns, the conclusion that the binary estimates are not statistically significant. Second, idiosyncratic shocks to `r nw(n_exp)` countries do not average out: the estimator does not concentrate around the true differential as the number of comparison countries grows [@conley2011inference], so any single estimate can be far from the true value even if it is correct on average. The dependence on Venezuela is a concrete instance of this problem. The wild cluster restricted bootstrap, randomization inference over exporter status, and the @conley2011inference procedure address these problems and are the natural next step; I have not run them, and I expect them to widen the confidence intervals. The recent econometric literature on DiD also discusses the interpretation of pre-trend tests and the problems of TWFE in the context of staggered adoption [@roth2023trending]. The last concern does not arise here, because treatment starts in the same year for every treated country, so the TWFE estimator reduces to a comparison between one high-exposure cohort and a lower-exposure comparison group with identical timing.
 
 # Budgetary implications and policy
 
 ## A subsidy--debt matrix
 
-The estimate in Section 5 is an average differential; the policy question is where the subsidy is most costly relative to the fiscal room to sustain it. I build a descriptive matrix of the `r fa$n_countries` countries with an explicit subsidy exceeding `r num(fa$subsidy_floor_pct_gdp)`% of GDP in 2022 (`r fa$n_exporters` exporters and `r fa$n_importers` importers). The horizontal axis shows the explicit subsidy in 2022, and the vertical axis shows gross public debt in 2022, both expressed as a percent of GDP. The sample medians, `r num(fa$median_subsidy_pct_gdp)`% of GDP for the subsidy and `r num(fa$median_debt_pct_gdp, 1)`% of GDP for debt, divide the plane into four quadrants. I use medians rather than means because they are not driven by extreme values such as Venezuela. Fiscal space is proxied by the debt stock rather than the one-year deficit, which is volatile and cyclical. The matrix is a prioritization device, not a causal model: it indicates where reform is most pressing, not the effect of any particular policy. Figure \ref{fig:matrix} shows the matrix and Table \ref{tab:fiscal} reports the underlying values.
+The estimate in Section 5 is an average differential; the policy question is where the subsidy is most costly relative to the fiscal room to sustain it. I build a descriptive matrix of the `r fa$n_countries` countries with an explicit subsidy exceeding `r num(fa$subsidy_floor_pct_gdp)`% of GDP in 2022 (`r fa$n_exporters` exporters and `r fa$n_importers` importers). `r enum(exp_out)`, the remaining exporter, is not in the matrix: its explicit subsidy was `r num(bra22)`% of GDP in 2022, below the floor. The horizontal axis shows the explicit subsidy in 2022, and the vertical axis shows gross public debt in 2022, both expressed as a percent of GDP. The sample medians, `r num(fa$median_subsidy_pct_gdp)`% of GDP for the subsidy and `r num(fa$median_debt_pct_gdp, 1)`% of GDP for debt, divide the plane into four quadrants. I use medians rather than means because they are not driven by extreme values such as Venezuela. Fiscal space is proxied by the debt stock rather than the one-year deficit, which is volatile and cyclical. The matrix is a prioritization device, not a causal model: it indicates where reform is most pressing, not the effect of any particular policy. Figure \ref{fig:matrix} shows the matrix and Table \ref{tab:fiscal} reports the underlying values.
 
 ```{r matrix, results="asis"}
 fig_float("fig5_fiscal_matrix.png", "Subsidy--debt matrix and policy quadrants, 2022", "matrix", max_height = "0.76\\textheight")
@@ -525,14 +672,14 @@ fig_float("fig5_fiscal_matrix.png", "Subsidy--debt matrix and policy quadrants, 
 The *urgent reform* quadrant (subsidy and debt both above the median) contains `r nw(nrow(urg))` countries: `r enum(the_c(qc[["Urgent reform"]]))`. It mixes `r nw(length(urg_exp))` exporters (`r enum(urg_exp)`) with `r nw(length(urg_imp))` importers (`r enum(urg_imp)`). Venezuela combines a subsidy of `r num(fcv("Venezuela", "explicit_subsidy_pct_gdp_2022"), 1)`% of GDP with debt of `r num(fcv("Venezuela", "debt_pct_gdp_2022"), 1)`% of GDP, Suriname `r num(fcv("Suriname", "explicit_subsidy_pct_gdp_2022"), 1)`% with `r num(fcv("Suriname", "debt_pct_gdp_2022"), 1)`%, and Bolivia `r num(fcv("Bolivia", "explicit_subsidy_pct_gdp_2022"), 1)`% with `r num(fcv("Bolivia", "debt_pct_gdp_2022"), 1)`%. `r Nw(nrow(urg_def))` of the `r nw(nrow(urg))` also ran a fiscal deficit in 2022, the largest in `r urg_def$country[1]` (`r num(urg_def$fiscal_balance_pct_gdp_2022[1], 1)`% of GDP) and `r urg_def$country[2]` (`r num(urg_def$fiscal_balance_pct_gdp_2022[2], 1)`%). The *gradual reform* quadrant (high subsidy, debt below the median) contains `r enum(the_c(qc[["Gradual reform"]]))`, again a mix of exporters and importers. The *monitor* quadrant (low subsidy, high debt) contains `r enum(the_c(qc[["Monitor"]]))`, all small Caribbean economies with limited fiscal room. The *no immediate pressure* quadrant contains `r enum(the_c(qc[["No immediate pressure"]]))`. The cut-offs are sample medians, and some countries sit close to them: `r enum(the_c(near_med))` are within `r band_debt` points of GDP of the debt median or within `r num(band_sub, 1)`\ pp of the subsidy median, and could change quadrant under small changes in the thresholds.
 
 ```{r tab-fiscal, results="asis"}
-tab_float("tab5_fiscal.xlsx",
+tab_float("tab6_fiscal.xlsx",
           "Subsidy, illustrative differential cost and fiscal space by country, 2022",
           "fiscal", colsep = "5pt")
 ```
 
-As an illustration only, Table \ref{tab:fiscal} values the average differential of `r npp(t2$coef)` of GDP at each exporter's 2022 GDP, for all `r nw(n_exp)` exporters. The figure is how much more an exporter of that size would have spent than an importer-type response implies, *if* it responded like the average exporter. It is neither the total cost of the shock nor the country's realized cost, and it inherits the uncertainty of $\hat\beta_3$, whose 95% CI of `r fci(t2$ci_low, t2$ci_high)` includes zero. For Mexico, the valuation is USD `r num(fxv("Mexico", "cost"), 1)` billion, with a range of USD `r num(fxv("Mexico", "cost_lo"), 1)` billion to USD `r num(fxv("Mexico", "cost_hi"), 1)` billion across the confidence interval, well above its realized 2021--2022 increase of USD `r num(fxv("Mexico", "change_usd_bn_2021_2022"), 1)` billion; for Colombia it is USD `r num(fxv("Colombia", "cost"), 1)` billion (range `r num(fxv("Colombia", "cost_lo"), 1)` to `r num(fxv("Colombia", "cost_hi"), 1)`), and for Guyana, whose subsidy actually fell, USD `r num(fxv("Guyana", "cost"), 2)` billion. No figure is reported for importers: they are the comparison group, so their differential is zero by construction, and the model identifies nothing about the shock's cost for them, which is absorbed by the year effects. The observed change is shown in a separate column (in pp); its absolute value in USD billion sets the size of the points in Figure \ref{fig:matrix}, with hollow points for decreases.
+As an illustration only, Table \ref{tab:fiscal} values the average differential of `r npp(t2$coef)` of GDP at the 2022 GDP of each of the `r nw(nrow(fx))` exporters in the matrix. The figure is how much more an exporter of that size would have spent than an importer-type response implies, *if* it responded like the average exporter. It is neither the total cost of the shock nor the country's realized cost, and it inherits the uncertainty of $\hat\beta_3$, whose 95% CI of `r fci(t2$ci_low, t2$ci_high)` includes zero, so the lower end of every range is negative. For Colombia, the largest of these economies, the valuation is USD `r num(fxv("Colombia", "cost"), 1)` billion, with a range of USD `r num(fxv("Colombia", "cost_lo"), 1)` billion to USD `r num(fxv("Colombia", "cost_hi"), 1)` billion across the confidence interval, compared with a realized 2021--2022 increase of USD `r num(fxv("Colombia", "change_usd_bn_2021_2022"), 1)` billion; for Ecuador it is USD `r num(fxv("Ecuador", "cost"), 1)` billion (range `r num(fxv("Ecuador", "cost_lo"), 1)` to `r num(fxv("Ecuador", "cost_hi"), 1)`), and for Venezuela, whose GDP is the most uncertain, USD `r num(fxv("Venezuela", "cost"), 2)` billion. No figure is reported for importers: they are the comparison group, so their differential is zero by construction, and the model identifies nothing about the shock's cost for them, which is absorbed by the year effects. The observed change is shown in a separate column (in pp); its absolute value in USD billion sets the size of the points in Figure \ref{fig:matrix}, with hollow points for decreases.
 
-The main lesson of the matrix is that fiscal pressure from fuel subsidies does not align with the oil trade position. Exporters' subsidies rose more than importers' on average, but importers such as `r enum(intersect(c("Suriname", "Argentina"), urg_imp))` are among the most exposed. High subsidies combined with high debt were present before 2022 and, in the raw data, rose further in several of these countries in 2022 (Table \ref{tab:countries}); the model does not identify how much of that rise in importers is due to the shock.
+The main lesson of the matrix is that fiscal pressure from fuel subsidies does not align with the oil trade position. Whatever the size of the average differential, importers such as `r enum(intersect(c("Suriname", "Bolivia", "Argentina"), urg_imp))` are among the most exposed. High subsidies combined with high debt were present before 2022 and, in the raw data, rose further in several of these countries in 2022 (Table \ref{tab:countries}); the model does not identify how much of that rise in importers is due to the shock.
 
 ## Regressivity and the case for targeted compensation
 
@@ -544,9 +691,9 @@ The recommendation varies by quadrant. In the urgent reform quadrant, domestic p
 
 # Conclusion
 
-The estimates indicate that the 2022 oil price shock raised the explicit fossil fuel subsidy of LAC net oil exporters by about `r npp(t2$coef)` of GDP more than that of net importers, a large but imprecisely estimated differential. Importers were also exposed to the shock, so this is a differential response, not the total effect of the shock. The 95% confidence interval includes zero (`r fp(t2$p_value)`), and with `r nw(n_exp)` treated countries, conventional clustered standard errors are likely too small, so the true uncertainty is larger than reported. Several pieces of evidence are consistent with a price channel: no detectable differential response in the implicit subsidy, a differential that peaks in 2022, and a reversal in 2023 when oil prices fell. The estimate is positive across all samples considered (`r num(rb$loo_range$min)` to `r npp(rb$loo_range$max)`), although it loses precision without Venezuela or Bolivia. The main caveats are the small treated group; a joint pre-trend test that rejects, with pre-shock differentials that move with the Brent price, so that the 2022 coefficient may partly reflect an ongoing differential price response; the confounding of exporter status with price-regulation regimes; and a falsification outcome that is not independent of the explicit measure.
+Under a treatment rule fixed before estimation, the explicit fossil fuel subsidy of LAC net oil exporters rose by about `r npp(t2$coef)` of GDP more than that of net importers in 2022. The estimate is imprecise and not statistically significant (`r fp(t2$p_value)`; 95% CI `r fci(t2$ci_low, t2$ci_high)`), and with `r nw(n_exp)` treated countries, conventional clustered standard errors are likely too small, so the true uncertainty is larger than reported. Importers were also exposed to the shock, so this is a differential response, not the total effect of the shock. The point estimate is positive under every binary definition of exporters considered (`r num(min(bin$coef))` to `r npp(max(bin$coef))`) and when each exporter is dropped in turn, so its sign is robust; its size is not, since it falls to `r npp(nven$coef)` without Venezuela. A continuous measure of net oil exposure points in the same direction, with a larger differential response the larger a country's net oil exports, but it is heavily leveraged by Venezuela and was pre-specified only as a sensitivity check. The timing is consistent with a price channel: the differential peaks in 2022 and falls in 2023 as oil prices decline, and the implicit subsidy shows no statistically significant differential response. The joint pre-trend test does not reject, but it has little power, and the leads co-move with the Brent price before 2021. The main caveats are the small treated group and the weight of one country; the confounding of exporter status with price-regulation regimes; possible spillovers through regional energy trade; and a falsification outcome that is not independent of the explicit measure. Overall, the evidence is suggestive of a larger subsidy response among net oil exporters, not conclusive.
 
-These caveats point to concrete extensions: small-cluster inference (wild cluster restricted bootstrap, randomization inference and the @conley2011inference procedure), a sensitivity analysis for violations of parallel trends [@rambachan2023more], a continuous-exposure design that interacts exporter status with the Brent price in every year, and a comparison of exporter status with pre-shock subsidy intensity as the exposure measure.
+These caveats point to concrete extensions: small-cluster and leverage-robust inference (wild cluster restricted bootstrap, randomization inference, and the @conley2011inference procedure), which matters most for the continuous-exposure estimate; a sensitivity analysis for violations of parallel trends [@rambachan2023more]; a design that interacts net oil exposure with the Brent price in every year; and direct measures of price-regulation regimes, which would help separate the oil-rent channel from differences in pricing institutions.
 
 The fiscal analysis shows that high subsidies combined with high debt are not limited to exporters. For importers, a subsidy tied to the international price expands exactly when supply is most expensive; for exporters, it absorbs the oil windfall that could otherwise be saved. In both cases, it is procyclical. Reforming it, in a sequence adapted to each country's fiscal space and with targeted compensation in place of universal price support, would free fiscal resources and reduce the exposure of public finances to oil price volatility.
 

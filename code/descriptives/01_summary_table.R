@@ -94,11 +94,11 @@ tabla_aer(
           "parameters but not independent of the price (its forgone-VAT part scales with it);",
           "not estimated for every country-year. Total: the IMF's own aggregate, which need",
           "not equal explicit plus implicit."),
-    paste0("Countries are classified by net oil trade position, not by production. ",
+    paste0("Countries are classified by net oil trade position (average 2015\u20132019 net exports of crude oil and refined products, UN Comtrade), not by production. ",
            "Net oil exporters (", num_en(n_exp), "): ",
            enum_en(sort(country_en(unique(df$iso[df$exportador_neto])))),
            "; the other ", num_en(n_imp), " countries are net oil importers."),
-    "Source: IMF Fossil Fuel Subsidies Database."
+    "Source: IMF Fossil Fuel Subsidies Database; UN Comtrade."
   )
 )
 

@@ -58,3 +58,42 @@ main panel (the reason is documented for each one).
 - **Period / coverage:** 2015–2023, 34 Latin American countries (291/284 observations).
 - **Use:** balance-of-payments dimension (external buffer). **Not merged into the
   panel.** Kept as a reference in case the external angle is revisited.
+
+## oil_trade_comtrade.csv  [in panel, via the treatment classification]
+- **Source:** UN Comtrade, public preview API (no key), annual HS trade with partner =
+  World, value in current USD (`primaryValue`), aggregate customs regime and transport
+  mode only (`customsCode` C00, `motCode` 0, `partner2Code` 0).
+- **URL:** https://comtradeapi.un.org/public/v1/preview/C/A/HS
+- **Download:** reproducible with `python3 code/cleaning/00f_download_oil_trade.py`
+  (network access required; ~80 calls, ~2 minutes).
+- **Content:** one row per country × year × commodity × flow: HS 2709 (crude), HS 2710
+  (refined products), HS 2711 (petroleum gases, sensitivity only); flows M and X;
+  34 countries, 2015–2023 (1,836 rows). Columns: `iso`, `year`, `cmd`, `flow`,
+  `value_usd`, `source` (`own` | `mirror`), `n_partners` (reporting partners, mirror rows).
+- **Own vs mirror:** a country-year-flow is own-reported when the country publishes its
+  TOTAL trade for that year and flow; a commodity missing from an own report is recorded
+  as 0 (Comtrade does not publish zero rows). Otherwise the value is rebuilt from
+  partners' reports (partners' imports from the country = its exports; partners'
+  exports to it = its imports; World and EU aggregates excluded). Mirror imports are
+  valued CIF and mirror exports FOB by the partner, so they are an approximation.
+- **Coverage, 2015–2019:** 29 countries report every year. Dominica does not report
+  2015; Haiti and St. Kitts and Nevis do not report 2018–2019 (mirror rows are stored,
+  but under the treatment rule these countries are averaged over their own-reported
+  years). Venezuela reports no year 2015–2023 and is classified from mirror data
+  (11–16 partners report its crude exports and 16–39 its refined-product trade;
+  crude imports come from at most 2 partners). Aruba reports under its own code (533) every year.
+  **Puerto Rico** is not a Comtrade reporter and does not exist as a partner either:
+  Comtrade's code 842 ("USA") covers the USA, Puerto Rico and the US Virgin Islands,
+  so partners book trade with Puerto Rico under the USA. Its own and mirror rows are
+  therefore all zero with `n_partners` = 0, which means *no data*, not zero trade.
+  **Documented exception:** Puerto Rico is classified as a net oil importer from an
+  outside source (source = `external` in `outputs/results/classification.rds`): it has
+  no crude oil production and no operating refinery (the last refineries closed in the
+  2000s) and imports all refined products — U.S. Energy Information Administration,
+  Puerto Rico territory energy profile, https://www.eia.gov/state/print.php?sid=RQ.
+  It is an importer in every binary variant; its net oil trade is left missing (not 0),
+  so it drops out of the continuous-exposure variant.
+- **Use:** pre-specified treatment rule (`quality_reports/plans/
+  2026-09-28_treatment-definition.md`), built in `code/cleaning/01_variables.py`:
+  net oil exporter iff the 2015–2019 average of exports − imports of HS 2709 + 2710 is
+  positive; sensitivity variants add HS 2711 or use 2019–2021.

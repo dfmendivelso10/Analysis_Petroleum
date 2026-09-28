@@ -15,21 +15,23 @@ does it imply for fiscal and subsidy policy?
 
 ## Key results
 
-- **Differential response:** in 2022 the explicit subsidy of the seven net oil exporters
-  rose **1.79 pp of GDP more** than that of net importers (TWFE difference-in-differences,
-  34 countries, 2015–2022; clustered SE 0.92, p = 0.06, 95% CI [−0.08, 3.66]). With only
-  seven treated countries, conventional clustered inference is likely optimistic.
-- **Pre-trends:** pre-shock coefficients have no monotonic trend, but a joint test rejects
-  that they are all zero (F(6, 33) = 4.09, p = 0.004) and they co-move with the Brent
-  price, so the estimate should be read with caution.
-- **Auxiliary outcomes:** no detectable differential response of the implicit subsidy
-  (−0.32 pp, not significant); the differential fades in 2023 (+0.14 pp) as Brent falls.
-- **Sensitivity:** dropping each exporter in turn keeps the estimate positive
-  (1.15 to 2.21 pp).
-- **Policy:** fiscal pressure is not limited to exporters. Eight countries, five of them
-  net importers, combine above-median subsidies with above-median public debt; the paper
-  argues for reform sequenced by fiscal space, with targeted compensation instead of
-  universal price subsidies.
+- **Treatment defined from data, fixed before estimation:** a country is a net oil
+  exporter if its 2015–2019 net trade in crude and refined products (UN Comtrade) is
+  positive. Five exporters: Brazil, Colombia, Ecuador, Trinidad and Tobago, Venezuela.
+- **Differential response (main result):** in 2022 exporters' explicit subsidy rose
+  1.32 pp of GDP more than importers' (TWFE, 34 countries; SE 1.03, p = 0.21,
+  95% CI [−0.79, 3.42]). The estimate is positive but **not statistically significant**,
+  and without Venezuela it falls to 0.28.
+- **Sensitivity to the exporter definition:** positive under every binary definition
+  (0.92 to 2.06 pp), none significant at the 5% level (two at 10%). A continuous
+  exposure measure (net oil exports as % of GDP), pre-specified as a sensitivity check,
+  points to a dose–response pattern, but it is heavily leveraged by Venezuela (19% of
+  GDP; next is Ecuador at 4%).
+- **Pre-trends:** a joint test does not reject zero pre-shock differentials
+  (F(6, 33) = 1.37, p = 0.26), although with few treated clusters such tests have low power.
+- **Reading:** the evidence for a larger response among exporters is suggestive, not
+  conclusive. Fiscal pressure is not limited to exporters: most countries combining
+  above-median subsidies and debt are net importers.
 
 ## Data sources
 
@@ -37,7 +39,7 @@ does it imply for fiscal and subsidy policy?
 - **EIA**: Brent crude oil price.
 - **IMF World Economic Outlook** (via IMF DataMapper): fiscal indicators (gross public debt,
   fiscal balance, general government revenue). The WEO is used instead of the World Bank
-  because it covers all 34 countries with no missing values (World Bank data has 50–79 %
+  because it covers all 34 countries with no missing values (World Bank data has 45–79%
   missing values for the Caribbean).
 
 Downloaded for reference but not merged into the panel: EMBIG country risk (BCRP) and
@@ -47,13 +49,14 @@ for inclusion or exclusion, are in `data/raw/SOURCES.md`.
 ## Structure
 
 ```
-code/               config.R + model (06), fiscal analysis (07) and robustness (08)
+code/               config.R + model (06), fiscal analysis (07), robustness (08) and
+                    classification sensitivity (09)
 code/cleaning/      download, processing, validation and data dictionary (Python)
 code/descriptives/  descriptive tables and figures (01–05), tables to PDF (R)
 data/raw/           Unmodified raw sources (IMF .xlsb, Brent, WEO fiscal data)
 data/processed/     Clean panels (.xlsx)
 outputs/            figures/ and tables/
-docs/               Visual conventions, variable dictionary, model variables
+docs/               Visual conventions and variable dictionary
 outputs/results/    Key estimates (.rds) and figure notes read by the paper
 report/             Working paper: R Markdown source, bibliography and rendered PDF
 DECISIONS.md        Methodological and data decisions, and why
@@ -68,16 +71,17 @@ Requires **Python 3** (data) and **R 4.4+** (analysis). From the project root:
 pip install pyxlsb pandas openpyxl requests
 Rscript -e 'install.packages(c("here","tidyverse","readxl","writexl","openxlsx","patchwork","fixest","sandwich","lmtest","magick","ggrepel","rmarkdown","knitr"))'
 
-# 1) Download complementary sources (Brent price and fiscal data)
+# 1) Download complementary sources (Brent price, fiscal data, oil trade)
 python3 code/cleaning/00a_download_brent.py
 python3 code/cleaning/00b_download_fiscal.py
+python3 code/cleaning/00f_download_oil_trade.py  # UN Comtrade: treatment classification
 # Optional (downloaded but not merged into the panel; see data/raw/SOURCES.md)
 python3 code/cleaning/00d_download_risk.py       # EMBIG country risk
 python3 code/cleaning/00e_download_reserves.py   # international reserves
 
 # 2) Processing: IMF + Brent + fiscal -> panels in data/processed/  (~9 s)
 python3 code/cleaning/00c_process.py
-python3 code/cleaning/01_variables.py
+python3 code/cleaning/01_variables.py   # derived variables + net oil exporter classification
 python3 code/cleaning/02_validate.py
 
 # 3) Descriptives in R (tables and figures; read the .xlsx panels)
@@ -90,7 +94,8 @@ Rscript code/descriptives/05_fig_impact.R     # Figure 3: change by country
 # 4) Model and analysis in R (08 runs before 07: the fiscal figure cites its results)
 Rscript code/06_model.R            # DiD/TWFE: main effect + event study (Table 3, Figure 4)
 Rscript code/08_robustness.R       # exclusions and leave-one-out (Table 4)
-Rscript code/07_fiscal_analysis.R  # subsidy–debt matrix (Table 5, Figure 5)
+Rscript code/07_fiscal_analysis.R  # subsidy–debt matrix (Table 6, Figure 5)
+Rscript code/09_classification_sensitivity.R  # beta3 under alternative exporter definitions (Table 5)
 
 # 5) Working paper (needs XeLaTeX; reads outputs/results, figures and tables)
 Rscript -e 'rmarkdown::render("report/oil_shock_subsidies_LAC.Rmd")'
@@ -131,6 +136,6 @@ The `.claude/` folder documents how the assistant was configured. It contains:
 1. Data — `data/`
 2. Processing code — `code/cleaning/`
 3. Analysis code — `code/descriptives/`, `code/06_model.R`, `code/07_fiscal_analysis.R`,
-   `code/08_robustness.R`
+   `code/08_robustness.R`, `code/09_classification_sensitivity.R`
 4. Working paper (R Markdown → PDF) — `report/`
 5. Design decisions — `DECISIONS.md`
